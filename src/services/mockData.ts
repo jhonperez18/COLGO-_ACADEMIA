@@ -52,7 +52,7 @@ export type Location = {
 
 export type RecentActivity = {
   id: string
-  kind: 'Matrícula' | 'Pago' | 'Curso' | 'Sede'
+  kind: 'Matrícula' | 'Pago' | 'Curso' | 'Sede' | 'Estudiante'
   title: string
   detail: string
   createdAt: string // ISO

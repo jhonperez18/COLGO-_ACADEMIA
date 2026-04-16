@@ -5,7 +5,7 @@
 // Ejemplo de cómo estructurar tus endpoints para conectar con la BD
 // ============================================================================
 
-import express, { Request, Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import {
   StudentAPI,
   CourseAPI,
@@ -19,7 +19,7 @@ const router = express.Router();
 
 // Función auxiliar para manejo de errores
 const asyncHandler = (fn: Function) => (req: Request, res: Response, next: Function) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
+  Promise.resolve(fn(req, res, next)).catch((err) => next(err));
 };
 
 // ============================================================================
@@ -27,7 +27,7 @@ const asyncHandler = (fn: Function) => (req: Request, res: Response, next: Funct
 // ============================================================================
 
 // GET /api/students - Obtener todos los estudiantes
-router.get('/students', asyncHandler(async (req: Request, res: Response) => {
+router.get('/students', asyncHandler(async (_req: Request, res: Response) => {
   const students = await StudentAPI.getAll();
   res.json(students);
 }));
@@ -77,13 +77,13 @@ router.get('/locations/:sedeId/students', asyncHandler(async (req: Request, res:
 // ============================================================================
 
 // GET /api/courses - Obtener todos los cursos
-router.get('/courses', asyncHandler(async (req: Request, res: Response) => {
+router.get('/courses', asyncHandler(async (_req: Request, res: Response) => {
   const courses = await CourseAPI.getAll();
   res.json(courses);
 }));
 
 // GET /api/courses/stats - Obtener cursos con estadísticas
-router.get('/courses/stats', asyncHandler(async (req: Request, res: Response) => {
+router.get('/courses/stats', asyncHandler(async (_req: Request, res: Response) => {
   const courses = await CourseAPI.getWithStats();
   res.json(courses);
 }));
@@ -120,7 +120,7 @@ router.get('/locations/:sedeId/courses', asyncHandler(async (req: Request, res: 
 // ============================================================================
 
 // GET /api/enrollments - Obtener todas las matrículas
-router.get('/enrollments', asyncHandler(async (req: Request, res: Response) => {
+router.get('/enrollments', asyncHandler(async (_req: Request, res: Response) => {
   const enrollments = await EnrollmentAPI.getAll();
   res.json(enrollments);
 }));
@@ -169,13 +169,13 @@ router.get('/students/:studentId/enrollments', asyncHandler(async (req: Request,
 // ============================================================================
 
 // GET /api/payments - Obtener todos los pagos
-router.get('/payments', asyncHandler(async (req: Request, res: Response) => {
+router.get('/payments', asyncHandler(async (_req: Request, res: Response) => {
   const payments = await PaymentAPI.getAll();
   res.json(payments);
 }));
 
 // GET /api/payments/revenue - Obtener ingresos totales
-router.get('/payments/revenue', asyncHandler(async (req: Request, res: Response) => {
+router.get('/payments/revenue', asyncHandler(async (_req: Request, res: Response) => {
   const revenue = await PaymentAPI.getTotalRevenue();
   res.json(revenue);
 }));
@@ -234,13 +234,13 @@ router.get('/students/:studentId/payments', asyncHandler(async (req: Request, re
 // ============================================================================
 
 // GET /api/locations - Obtener todas las sedes
-router.get('/locations', asyncHandler(async (req: Request, res: Response) => {
+router.get('/locations', asyncHandler(async (_req: Request, res: Response) => {
   const locations = await LocationAPI.getAll();
   res.json(locations);
 }));
 
 // GET /api/locations/stats - Obtener sedes con estadísticas
-router.get('/locations/stats', asyncHandler(async (req: Request, res: Response) => {
+router.get('/locations/stats', asyncHandler(async (_req: Request, res: Response) => {
   const stats = await LocationAPI.getStats();
   res.json(stats);
 }));
@@ -269,7 +269,7 @@ router.get('/activity', asyncHandler(async (req: Request, res: Response) => {
 // MANEJO DE ERRORES
 // ============================================================================
 
-router.use((err: any, req: Request, res: Response, next: Function) => {
+router.use((err: any, _req: Request, res: Response, _next: Function) => {
   console.error('Error:', err);
   res.status(500).json({
     error: 'Error interno del servidor',

@@ -4,10 +4,10 @@ import { Badge } from '../components/common/Badge'
 import { KpiCard } from '../components/dashboard/KpiCard'
 import { BarChart, LineChart } from '../components/charts/MockCharts'
 import { formatCOP, formatDate } from '../services/mockData'
-import { Clock, CreditCard, MapPinned, ReceiptText, Sparkles } from 'lucide-react'
+import { Clock, CreditCard, MapPinned, ReceiptText, Sparkles, User } from 'lucide-react'
 import { useColgo } from '../state/useColgo'
 
-function iconForKind(kind: 'Matrícula' | 'Pago' | 'Curso' | 'Sede') {
+function iconForKind(kind: 'Matrícula' | 'Pago' | 'Curso' | 'Sede' | 'Estudiante') {
   const common = 'text-[rgba(113,63,18,0.95)]'
   switch (kind) {
     case 'Pago':
@@ -16,6 +16,8 @@ function iconForKind(kind: 'Matrícula' | 'Pago' | 'Curso' | 'Sede') {
       return <ReceiptText size={16} className={common} />
     case 'Sede':
       return <MapPinned size={16} className={common} />
+    case 'Estudiante':
+      return <User size={16} className={common} />
     default:
       return <Sparkles size={16} className={common} />
   }

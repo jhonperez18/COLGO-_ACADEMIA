@@ -7,7 +7,7 @@ import { Modal } from '../components/common/Modal'
 import { CreateStudentForm, type CreateStudentFormData } from '../components/students/CreateStudentForm'
 import { type Student, type StudentStatus, formatDate } from '../services/mockData'
 import { StudentService } from '../services/api'
-import { CalendarClock, Download, Eye, Plus } from 'lucide-react'
+import { Download, Eye, Plus } from 'lucide-react'
 import { useColgo } from '../state/useColgo'
 
 function statusTone(status: StudentStatus): 'success' | 'warning' | 'danger' | 'neutral' | 'accent' {
@@ -26,7 +26,6 @@ export function EstudiantesPage() {
   const [selected, setSelected] = useState<Student | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
@@ -40,7 +39,6 @@ export function EstudiantesPage() {
 
   const handleCreateStudent = async (formData: CreateStudentFormData) => {
     setIsCreating(true)
-    setCreateError(null)
 
     try {
       // Generar ID único para el estudiante
@@ -60,8 +58,8 @@ export function EstudiantesPage() {
         document: formData.document,
         status: formData.status,
         sede_id: sedeMapping[formData.sede] || sedeMapping['Medellín'],
-        email: formData.email || null,
-        phone: formData.phone || null,
+        email: formData.email || undefined,
+        phone: formData.phone || undefined,
       }
 
       // Enviar a la API
@@ -86,8 +84,6 @@ export function EstudiantesPage() {
       // Mostrar mensaje de éxito (opcional - puedes agregar un toast)
       console.log('Estudiante agregado exitosamente')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error al crear el estudiante'
-      setCreateError(message)
       console.error('Error al crear estudiante:', error)
     } finally {
       setIsCreating(false)
@@ -310,7 +306,6 @@ export function EstudiantesPage() {
         open={showCreateModal}
         onClose={() => {
           setShowCreateModal(false)
-          setCreateError(null)
         }}
         title="Crear Nuevo Estudiante"
         footer={
@@ -319,7 +314,6 @@ export function EstudiantesPage() {
               variant="secondary"
               onClick={() => {
                 setShowCreateModal(false)
-                setCreateError(null)
               }}
               disabled={isCreating}
             >

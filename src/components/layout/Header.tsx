@@ -11,6 +11,7 @@ import type { SearchSuggestion } from '../../services/mockData'
 import { Badge } from '../common/Badge'
 import { cn } from '../../utils/cn'
 import { formatDate } from '../../services/mockData'
+import { useAuth } from '../../state/authContext'
 
 type Notification = { id: string; title: string; detail: string; dateISO: string }
 
@@ -30,6 +31,7 @@ export function Header({
   activePageLabel: string
 }) {
   const navigate = useNavigate()
+  const auth = useAuth()
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -189,7 +191,7 @@ export function Header({
 
               {userOpen ? (
                 <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-soft">
-                  {['Perfil', 'Ajustes', 'Soporte', 'Cerrar sesión'].map((label) => (
+                  {['Perfil', 'Ajustes', 'Soporte'].map((label) => (
                     <button
                       key={label}
                       type="button"
@@ -201,6 +203,17 @@ export function Header({
                       {label}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    className="block w-full border-t border-[var(--border)] px-4 py-3 text-left text-sm font-semibold text-[var(--text)] hover:bg-[rgba(15,23,42,0.04)]"
+                    onClick={() => {
+                      auth.logout()
+                      setUserOpen(false)
+                      navigate('/login', { replace: true })
+                    }}
+                  >
+                    Cerrar sesión
+                  </button>
                 </div>
               ) : null}
             </div>

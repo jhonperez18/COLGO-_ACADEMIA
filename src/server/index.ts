@@ -36,12 +36,12 @@ app.use(express.urlencoded({ extended: true }))
 // ============================================================================
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() })
 })
 
 // Database connection test
-app.get('/api/db-test', async (req, res) => {
+app.get('/api/db-test', async (_req, res) => {
   try {
     res.json({ status: 'connected', database: 'colgo_db' })
   } catch (error) {
@@ -54,7 +54,7 @@ app.get('/api/db-test', async (req, res) => {
 // ============================================================================
 
 // Estudiantes
-app.get('/api/students', (req, res) => {
+app.get('/api/students', (_req, res) => {
   res.json([
     {
       id: 'stu_001',
@@ -68,7 +68,7 @@ app.get('/api/students', (req, res) => {
 })
 
 app.post('/api/students', (req, res) => {
-  const { id, name, document, status, sede_id, email, phone } = req.body
+  const { id, name, document } = req.body
 
   if (!id || !name || !document) {
     return res.status(400).json({ error: 'Campos requeridos: id, name, document' })

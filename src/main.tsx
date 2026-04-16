@@ -4,13 +4,16 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { ColgoProvider } from './state/ColgoProvider'
+import { AuthProvider } from './state/authContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <ColgoProvider>
-        <App />
-      </ColgoProvider>
+      <AuthProvider>
+        <ColgoProvider>
+          <App />
+        </ColgoProvider>
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 )
