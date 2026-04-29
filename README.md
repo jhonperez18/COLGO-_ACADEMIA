@@ -185,6 +185,28 @@ Sigue la guía en [QUICK_START.md](QUICK_START.md) para instalar dependencias y 
 4. Vercel detecta Vite automáticamente y despliega el frontend.
 5. Accede a tu app en la URL pública que te da Vercel.
 
+**Vincular este repo con tu proyecto de Vercel desde la terminal (no sustituye iniciar sesión en el navegador la primera vez):**
+
+1. En la raíz del repo: `npm run vercel:login` (solo la primera vez).
+2. `npm run vercel:link` y elige el equipo y el proyecto de Vercel (crea la carpeta local `.vercel/`, ignorada por git).
+3. Opcional: `npm run vercel:pull` descarga las variables del proyecto a `.env.vercel.local` (gitignored). Copia de ahí las claves `VITE_*` que necesites a tu `.env.local` para desarrollo en local.
+4. Despliegue manual desde la carpeta del front: `npm run vercel:deploy` (o deja que GitHub dispare el deploy al hacer push).
+
+Variables mínimas recomendadas en Vercel (Production): `VITE_API_URL` (URL pública del backend con `/api`), y si usas Supabase: `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (o los nombres `NEXT_PUBLIC_SUPABASE_*`; el `vite.config` los acepta como alias en el build).
+
+#### Actualización automática al hacer `git push`
+
+**Opción A (recomendada):** En [Vercel](https://vercel.com/) → tu proyecto → **Settings → Git**: revisa que el **repositorio** sea el de GitHub correcto y que **Production Branch** coincida con la rama a la que subes código (por defecto `main`). Cada push debería generar un deployment nuevo en la pestaña **Deployments**.
+
+**Opción B (si con Git conectado no ves builds nuevos):** usa el workflow **`.github/workflows/vercel-redeploy.yml`**:
+
+1. Vercel → proyecto → **Settings → Git** → sección **Deploy Hooks** → **Create Hook** (rama de producción, p. ej. `main`).
+2. Copia la URL del hook (suele empezar por `https://api.vercel.com/v1/integrations/deploy/...`).
+3. En GitHub del repositorio: **Settings → Secrets and variables → Actions** → **New repository secret** → nombre `VERCEL_DEPLOY_HOOK`, valor = esa URL.
+4. Haz **push** a `main` (o ejecuta el workflow a mano en **Actions → Vercel redeploy → Run workflow**).
+
+Si la opción A ya te redeploya en cada push, la B puede lanzar **dos** builds por push; en ese caso no uses el hook o elimina el workflow.
+
 ### Backend en Railway
 1. Ve a [railway.app](https://railway.app/) y crea un nuevo proyecto.
 2. Importa tu repo o sube el backend (`src/server`).

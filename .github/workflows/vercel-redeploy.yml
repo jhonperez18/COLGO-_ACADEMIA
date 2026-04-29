@@ -1,0 +1,38 @@
+# Redespliegue automático en Vercel al hacer push (sin depender solo del webhook de Git).
+#
+# 1) Vercel → tu proyecto → Settings → Git → Deploy Hooks → "Create Hook"
+#    Nombre: github-push  |  Branch: Production (o la rama que uses)
+# 2) Copia la URL del hook (empieza por https://api.vercel.com/v1/integrations/deploy/...)
+# 3) GitHub del repo → Settings → Secrets and variables → Actions → New repository secret
+#    Nombre: VERCEL_DEPLOY_HOOK   Valor: la URL del paso 1
+#
+# Si ya tienes "Git" conectado en Vercel y cada push ya genera un deploy, este workflow
+# puede duplicar builds: en ese caso borra este archivo o no definas el secret.
+
+name: Vercel redeploy
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-redeploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar Deploy Hook
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK" ]; then
+            echo "::warning::No hay secret VERCEL_DEPLOY_HOOK. Añádelo en GitHub → Settings → Secrets (ver comentario arriba en este workflow). Mientras tanto Vercel solo actualiza si la integración Git del proyecto está bien configurada."
+            exit 0
+          fi
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
+          echo "Deploy en Vercel solicitado correctamente."

@@ -8,7 +8,11 @@
     "server": "node backend/index.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vercel:login": "npx --yes vercel@latest login",
+    "vercel:link": "npx --yes vercel@latest link",
+    "vercel:pull": "npx --yes vercel@latest env pull .env.vercel.local --yes",
+    "vercel:deploy": "npx --yes vercel@latest deploy"
   },
   "ts-node": {
     "esm": true,

@@ -136,7 +136,16 @@ export function LoginPage() {
             </form>
 
             <div className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-4 py-3 text-xs text-[var(--muted)]">
-              <p><strong>Conecta con backend:</strong> Asegúrate de que el servidor está corriendo en puerto 3001</p>
+              <p>
+                <strong>Conecta con backend:</strong>{' '}
+                {import.meta.env.DEV ? (
+                  <>en local ejecuta <code className="text-[var(--text)]">npm run server</code> (puerto 3001).</>
+                ) : import.meta.env.VITE_API_URL ? (
+                  <>API: <code className="break-all text-[var(--text)]">{String(import.meta.env.VITE_API_URL)}</code></>
+                ) : (
+                  <>en Vercel define <code className="text-[var(--text)]">VITE_API_URL</code> con la URL pública de tu API y vuelve a desplegar.</>
+                )}
+              </p>
             </div>
           </div>
         </div>
