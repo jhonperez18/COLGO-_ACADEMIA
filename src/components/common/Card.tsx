@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '../../utils/cn'
+import { backofficeAmberInsetHairline } from '../layout/backofficeVisual'
 
 export function Card({
   children,
@@ -13,6 +14,7 @@ export function Card({
       className={cn(
         'rounded-2xl border bg-[var(--surface)] p-4 shadow-md',
         'border-[var(--border)]',
+        backofficeAmberInsetHairline,
         className,
       )}
     >

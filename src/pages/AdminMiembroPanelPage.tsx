@@ -127,7 +127,7 @@ function buildTabItems(rol: RolApi, viewerRol: UserRole): { id: TabId; label: st
   const ic = 'h-3 w-3 shrink-0 opacity-90'
   const items: { id: TabId; label: string; icon: ReactNode }[] = [
     { id: 'resumen', label: 'Resumen', icon: <LayoutDashboard className={ic} /> },
-    { id: 'perfil', label: 'Perfil y datos', icon: <UserCircle2 className={ic} /> },
+    { id: 'perfil', label: 'Perfil y datos anexos', icon: <UserCircle2 className={ic} /> },
   ]
   if (rol === 'docente' || rol === 'estudiante') {
     items.push({
@@ -632,6 +632,24 @@ export default function AdminMiembroPanelPage() {
   const supervisionHref = viewerRol === 'admin' && (u.rol === 'docente' || u.rol === 'estudiante') ? `/admin/supervision?target=${u.id}` : null
 
   const tabItems = buildTabItems(u.rol, viewerRol)
+  const fichaHeaderChipTitulo = (() => {
+    switch (tab) {
+      case 'resumen':
+        return 'Resumen del miembro'
+      case 'perfil':
+        return 'Perfil y datos anexos'
+      case 'cursos':
+        return u.rol === 'docente' ? 'Cursos como docente' : 'Inscripción a cursos'
+      case 'seguridad':
+        return 'Seguridad'
+      case 'staff':
+        return 'Permisos staff'
+      case 'actividad':
+        return 'Actividad reciente'
+      default:
+        return tabItems.find((item) => item.id === tab)?.label ?? ''
+    }
+  })()
   const resumenChecksBase = [
     { label: 'Nombre(s)', ok: Boolean(formEditar.nombres.trim()) },
     { label: 'Apellido(s)', ok: Boolean(formEditar.apellidos.trim()) },
@@ -701,10 +719,13 @@ export default function AdminMiembroPanelPage() {
   const resumenTablaCampos = [...resumenTablaCamposBase, ...resumenTablaCamposRol]
   /** Misma pauta que `DataTable` (Table.tsx): cabecera + filas cebra + hover */
   const resumenTablaHeadThClass =
-    'sticky top-0 z-[1] border-b-2 border-[var(--accent)] bg-[var(--panel-2)] px-4 py-3.5 text-left align-middle text-sm font-extrabold uppercase tracking-wide text-[var(--text)] antialiased'
+    'sticky top-0 z-[1] border-b-2 border-[var(--accent)] bg-[var(--panel-2)] px-4 py-3 text-left align-middle text-sm font-extrabold uppercase tracking-wide text-[var(--text)] antialiased'
   const tabCardClass = cn(backofficePanelCardClass, 'bg-gradient-to-b from-[var(--surface)] to-[var(--panel-2)] p-4 sm:p-5')
   const tabHeaderTitleClass = 'text-base font-semibold tracking-tight text-[var(--text)]'
-  const tabInnerBlockClass = 'rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-4'
+  const tabInnerBlockClass = cn(
+    'rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-4',
+    'ring-1 ring-inset ring-amber-300/22',
+  )
 
   return (
     <div className="flex min-h-0 w-full flex-col gap-5 px-0 pb-10 pt-0 lg:gap-6 lg:pb-12 lg:pt-0">
@@ -730,7 +751,7 @@ export default function AdminMiembroPanelPage() {
               <div className={backofficeDarkOrbBottomLeft} aria-hidden />
               <div className={backofficeBottomAccentClass} aria-hidden />
               <div className={cn(backofficeTopHeaderPadClass, 'min-h-0 pt-3 pb-[1cm] grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-3')}>
-                <div className="min-w-0 space-y-1">
+                <div className="min-w-0 space-y-3 sm:space-y-4">
                   <p className="truncate text-base font-semibold tracking-tight text-white lg:text-lg">{u.nombre_completo || u.email}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-xs font-medium text-white/95 backdrop-blur-sm">
@@ -800,10 +821,10 @@ export default function AdminMiembroPanelPage() {
                     </Button>
                   ) : null}
                 </div>
-                {tab === 'resumen' ? (
+                {fichaHeaderChipTitulo ? (
                   <div className="pointer-events-none absolute inset-x-0 bottom-1 z-20 flex justify-center">
-                    <p className="rounded-full border border-white/20 bg-white/10 px-3 py-0.5 text-xs font-semibold tracking-wide text-white/95 shadow-[0_2px_12px_rgba(0,0,0,0.25)] backdrop-blur-md sm:px-4 sm:text-sm">
-                      Resumen del miembro
+                    <p className="max-w-[min(100%,42rem)] truncate rounded-full border border-white/20 bg-white/10 px-3 py-0.5 text-center text-xs font-semibold tracking-wide text-white/95 shadow-[0_2px_12px_rgba(0,0,0,0.25)] backdrop-blur-md sm:px-4 sm:text-sm">
+                      {fichaHeaderChipTitulo}
                     </p>
                   </div>
                 ) : null}
@@ -857,9 +878,6 @@ export default function AdminMiembroPanelPage() {
           {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div> : null}
       {tab === 'resumen' ? (
         <Card className={tabCardClass}>
-          <div className="mb-4">
-            <p className={tabHeaderTitleClass}>Resumen del miembro</p>
-          </div>
           <div className="overflow-hidden rounded-xl border border-[var(--border)]">
             <div className="flex flex-col divide-y divide-[var(--border)] bg-[var(--panel-2)]/50 lg:flex-row lg:divide-x lg:divide-y-0">
               <div className="min-w-0 flex-[1.25] p-3.5 lg:py-3">
@@ -932,17 +950,17 @@ export default function AdminMiembroPanelPage() {
                         <th
                           scope="row"
                           className={cn(
-                            'px-4 py-3 text-left align-middle text-sm font-semibold text-[var(--text)]',
+                            'px-4 py-2.5 text-left align-middle text-sm font-semibold text-[var(--text)]',
                             sep,
                           )}
                         >
                           {row.campo}
                         </th>
-                        <td className={cn('px-4 py-3 align-middle text-sm text-[var(--text)]', sep)}>{row.valor || '—'}</td>
-                        <td className={cn('px-4 py-3 text-right align-middle text-sm', sep)}>
+                        <td className={cn('px-4 py-2.5 align-middle text-sm text-[var(--text)]', sep)}>{row.valor || '—'}</td>
+                        <td className={cn('px-4 py-2.5 text-right align-middle text-sm', sep)}>
                           <span
                             className={cn(
-                              'inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums',
+                              'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
                               row.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800',
                             )}
                           >
@@ -969,10 +987,9 @@ export default function AdminMiembroPanelPage() {
       {tab === 'perfil' ? (
       <form onSubmit={guardarPerfil}>
         <Card className={tabCardClass}>
-          <div className="mb-4 flex flex-col gap-2 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className={tabHeaderTitleClass}>Perfil y datos anexos</p>
-            {cargandoDetalle ? <span className="text-xs font-medium text-amber-700">Sincronizando con el servidor…</span> : null}
-          </div>
+          {cargandoDetalle ? (
+            <p className="mb-3 text-xs font-medium text-amber-700">Sincronizando con el servidor…</p>
+          ) : null}
           {errorPerfil ? <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{errorPerfil}</div> : null}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className={tabInnerBlockClass}>
@@ -1214,12 +1231,7 @@ export default function AdminMiembroPanelPage() {
 
       {tab === 'cursos' && (u.rol === 'docente' || u.rol === 'estudiante') ? (
         <Card className={tabCardClass}>
-          <div className="mb-4 flex items-center gap-2 border-b border-[var(--border)] pb-3">
-            <h2 className={tabHeaderTitleClass}>
-              {u.rol === 'docente' ? 'Cursos como docente' : 'Inscripción a cursos'}
-            </h2>
-          </div>
-          <p className="text-sm text-[var(--muted)]">
+          <p className="mb-4 text-sm text-[var(--muted)]">
             Selecciona uno o varios cursos (con docente asignado) y aplica. Puedes volver a esta pestaña para sumar más.
           </p>
           <div className="mt-4 max-h-56 overflow-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-4">
@@ -1254,9 +1266,6 @@ export default function AdminMiembroPanelPage() {
 
       {tab === 'seguridad' ? (
         <Card className={tabCardClass}>
-          <div className="mb-4">
-            <h2 className={tabHeaderTitleClass}>Seguridad</h2>
-          </div>
           <div className={tabInnerBlockClass}>
             <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-[var(--border)] pb-3">
               <h3 className={tabHeaderTitleClass}>Si olvidó la contraseña o no tiene el correo de acceso</h3>
@@ -1309,8 +1318,7 @@ export default function AdminMiembroPanelPage() {
 
       {tab === 'staff' && u.rol === 'staff' && viewerRol === 'admin' ? (
         <Card className={tabCardClass}>
-          <h2 className={cn(tabHeaderTitleClass, 'border-b border-[var(--border)] pb-3')}>Permisos staff</h2>
-          <div className="mt-3 grid max-w-xl grid-cols-1 gap-3">
+          <div className="grid max-w-xl grid-cols-1 gap-3">
             <label className="block">
               <span className="mb-0.5 block text-[11px] font-semibold uppercase text-[var(--muted)]">Nivel de confianza</span>
               <select
@@ -1358,9 +1366,6 @@ export default function AdminMiembroPanelPage() {
 
       {tab === 'actividad' ? (
         <Card className={tabCardClass}>
-          <div className="mb-4 flex items-center gap-2 border-b border-[var(--border)] pb-3">
-            <h2 className={tabHeaderTitleClass}>Actividad reciente</h2>
-          </div>
           <div className="max-h-[28rem] space-y-3 overflow-auto pr-1">
             {cargandoActividad ? (
               <p className="text-sm text-[var(--muted)]">Cargando…</p>

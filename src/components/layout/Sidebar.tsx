@@ -132,16 +132,16 @@ export function Sidebar({
                     className={cn(
                       'group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-all duration-150',
                       isActive
-                        ? 'border border-slate-200 bg-gradient-to-r from-white to-slate-100/75 shadow-sm ring-1 ring-[rgba(251,191,36,0.18)]'
-                        : 'border border-transparent hover:border-slate-300/70 hover:bg-gradient-to-r hover:from-slate-100/95 hover:to-slate-200/75',
+                        ? 'border border-amber-400/55 bg-gradient-to-r from-slate-300 via-amber-100/70 to-amber-200/60 shadow-md ring-1 ring-amber-500/40'
+                        : 'border border-slate-300/80 bg-gradient-to-r from-slate-100/85 via-white to-slate-200/70 hover:border-slate-400/90 hover:from-slate-200/90 hover:via-slate-100 hover:to-slate-300/70',
                     )}
                   >
                     <span
                       className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors',
+                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-all duration-150',
                         isActive
-                          ? 'border-slate-300/80 bg-slate-100/90 text-[rgba(113,63,18,0.95)]'
-                          : 'border-[rgba(15,23,42,0.08)] bg-slate-50/80 text-[var(--muted)] group-hover:border-slate-300/80 group-hover:bg-slate-200/85 group-hover:text-[var(--text)]',
+                          ? 'border-amber-500/55 bg-gradient-to-b from-slate-500 via-slate-400 to-amber-300/80 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]'
+                          : 'border-slate-300/90 bg-gradient-to-b from-slate-100 to-slate-200/85 text-slate-700 group-hover:border-slate-500/85 group-hover:from-slate-300 group-hover:to-slate-400/75 group-hover:text-slate-950',
                       )}
                     >
                       {item.icon}
@@ -150,13 +150,13 @@ export function Sidebar({
                       <span
                         className={cn(
                           'block text-sm transition-colors',
-                          isActive ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--text)]/78 group-hover:text-[var(--text)]',
+                          isActive ? 'font-semibold text-slate-950' : 'font-medium text-slate-700 group-hover:text-slate-900',
                         )}
                       >
                         {item.label}
                       </span>
                       {isActive ? (
-                        <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wide text-[var(--accent-2)]">
+                        <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                           Vista actual
                         </span>
                       ) : null}
@@ -167,8 +167,8 @@ export function Sidebar({
                       className={cn(
                         'shrink-0 transition-all',
                         isActive
-                          ? 'translate-x-0 text-[var(--accent-2)] opacity-100'
-                          : 'text-[var(--muted)] opacity-0 group-hover:translate-x-0 group-hover:opacity-60',
+                          ? 'translate-x-0 text-amber-700 opacity-100'
+                          : 'text-slate-500/70 opacity-40 group-hover:translate-x-0 group-hover:opacity-80',
                       )}
                     />
                   </button>
@@ -179,7 +179,7 @@ export function Sidebar({
 
           <div className="shrink-0 border-t border-[var(--border)] bg-gradient-to-t from-amber-50/45 to-transparent px-3 py-3">
             <Button
-              className="w-full"
+              className="w-full border-amber-300/55 bg-gradient-to-b from-slate-200 via-amber-100/75 to-slate-300/85 text-slate-900 hover:border-amber-400/65 hover:from-slate-300 hover:via-amber-200/80 hover:to-slate-400/85 hover:text-slate-950"
               size="sm"
               variant="secondary"
               leftIcon={<LogOut size={16} strokeWidth={2} />}

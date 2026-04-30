@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '../components/common/Button'
 import { Modal } from '../components/common/Modal'
 import { Card } from '../components/common/Card'
-import { backofficePanelCardClass } from '../components/layout/backofficeVisual'
+import { backofficeAmberInsetHairline, backofficePanelCardClass } from '../components/layout/backofficeVisual'
 import { cn } from '../utils/cn'
 import { DataTable, type Column } from '../components/common/Table'
 import {
@@ -100,13 +100,6 @@ export default function UsuariosPage() {
   const esModuloStaff = vistaActiva === 'staff'
   const esModuloRol = esModuloDocentes || esModuloEstudiantes || esModuloStaff
   const esVistaNuevoRegistro = !esModuloRol
-  const vistaTitulo = esModuloDocentes
-    ? 'Gestión de Docentes'
-    : esModuloEstudiantes
-      ? 'Gestión de Estudiantes'
-      : esModuloStaff
-        ? 'Gestión de Staff'
-      : 'Nuevo Registro'
 
   const panelBase = location.pathname.startsWith('/staff') ? '/staff' : '/admin'
   const origenLista = esVistaNuevoRegistro ? 'nuevo' : 'rol'
@@ -266,7 +259,7 @@ export default function UsuariosPage() {
             header: 'Acciones',
             className: 'min-w-[200px]',
             render: (u: UsuarioListaItem) => (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto sm:flex-row-reverse">
                 <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--panel-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted)]">
                   Solo alta
                 </span>
@@ -344,56 +337,21 @@ export default function UsuariosPage() {
         )}
       >
         <div className="mb-4 flex flex-col gap-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-base font-semibold tracking-tight text-[var(--text)]">{vistaTitulo}</p>
-              <p className="mt-1 text-xs text-[var(--muted)]">Gestión centralizada con enfoque por rol académico.</p>
-            </div>
-            {!esModuloRol ? (
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setErrorForm(null)
-                  setMensajeExito(null)
-                  setAdvertenciaCorreo(null)
-                  setDetalleCorreo(null)
-                  setValidacion({ checking: false, cedulaExists: false, emailExists: false })
-                  setShowCreateModal(true)
-                }}
-              >
-                Nuevo usuario
-              </Button>
-            ) : null}
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="sm:col-span-3 flex flex-wrap gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)]/70 p-2">
-              {esModuloDocentes ? (
-                <Button size="sm" variant="primary" onClick={() => cambiarVista('docente')}>Docentes</Button>
-              ) : esModuloEstudiantes ? (
-                <Button size="sm" variant="primary" onClick={() => cambiarVista('estudiante')}>Estudiantes</Button>
-              ) : esModuloStaff ? (
-                <Button size="sm" variant="primary" onClick={() => cambiarVista('staff')}>Staff</Button>
-              ) : (
-                <>
-                  <Button size="sm" variant={vistaActiva === 'todos' ? 'primary' : 'secondary'} onClick={() => cambiarVista('todos')}>Todos los usuarios</Button>
-                  <Button size="sm" variant={vistaActiva === 'admin' ? 'primary' : 'secondary'} onClick={() => cambiarVista('admin')}>Administradores</Button>
-                  <Button size="sm" variant="secondary" onClick={() => cambiarVista('docente')}>Docentes</Button>
-                  <Button size="sm" variant="secondary" onClick={() => cambiarVista('estudiante')}>Estudiantes</Button>
-                </>
-              )}
-            </div>
-            <input
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por nombre, cédula o correo"
-              className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)] sm:col-span-2"
-            />
-            {!esModuloRol ? (
+          {!esModuloRol ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)]/70 p-2">
+              <input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre, cédula o correo"
+                className={cn(
+                  'h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)] sm:w-[24rem] lg:w-[28rem]',
+                  backofficeAmberInsetHairline,
+                )}
+              />
               <select
                 value={filtroRol}
                 onChange={(e) => setFiltroRol(e.target.value as 'todos' | RolApi)}
-                className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)]"
+                className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)] sm:w-[12.5rem]"
               >
                 <option value="todos">Todos los roles</option>
                 <option value="admin">Administrador</option>
@@ -401,8 +359,49 @@ export default function UsuariosPage() {
                 <option value="estudiante">Estudiante</option>
                 <option value="staff">Staff</option>
               </select>
-            ) : null}
-          </div>
+              <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+                <Button size="sm" variant={vistaActiva === 'todos' ? 'primary' : 'secondary'} onClick={() => cambiarVista('todos')}>
+                  Todos los usuarios
+                </Button>
+                <Button size="sm" variant={vistaActiva === 'admin' ? 'primary' : 'secondary'} onClick={() => cambiarVista('admin')}>
+                  Administradores
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => cambiarVista('docente')}>
+                  Docentes
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => cambiarVista('estudiante')}>
+                  Estudiantes
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setErrorForm(null)
+                    setMensajeExito(null)
+                    setAdvertenciaCorreo(null)
+                    setDetalleCorreo(null)
+                    setValidacion({ checking: false, cedulaExists: false, emailExists: false })
+                    setShowCreateModal(true)
+                  }}
+                >
+                  Nuevo usuario
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre, cédula o correo"
+                className={cn(
+                  'h-10 justify-self-start rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)]',
+                  backofficeAmberInsetHairline,
+                  'w-full sm:col-span-3 sm:w-[28rem]',
+                )}
+              />
+            </div>
+          )}
         </div>
 
         {errorLista ? (
@@ -412,16 +411,12 @@ export default function UsuariosPage() {
           <p className="text-sm text-[var(--muted)]">Cargando…</p>
         ) : (
           <>
-            {esModuloRol ? (
-              <p className="mb-2 text-xs text-[var(--muted)]">
-                Haz clic en cualquier fila de la tabla para abrir la ficha completa del usuario (edición, cursos, seguridad y actividad).
-              </p>
-            ) : null}
             <DataTable
               columns={columns}
               rows={usuariosFiltrados}
               getRowId={(u) => String(u.id)}
               onRowClick={esModuloRol ? (u) => abrirPanelMiembro(u) : undefined}
+              className={esModuloRol ? 'mt-3' : 'mt-3'}
             />
           </>
         )}

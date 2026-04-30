@@ -37,11 +37,11 @@ export function Button({
         size === 'md' && 'h-10 px-4',
         size === 'lg' && 'h-11 px-5 text-base',
         variant === 'primary' &&
-          'border-[rgba(251,191,36,0.55)] bg-[var(--accent)] text-black shadow-soft hover:bg-[var(--accent-2)]',
+          'border-[rgba(176,150,86,0.5)] bg-[rgba(224,206,160,0.78)] text-slate-900 shadow-soft hover:bg-[rgba(214,194,145,0.86)] hover:border-[rgba(150,126,72,0.58)]',
         variant === 'secondary' &&
-          'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text)] hover:bg-[#f1f5f9]',
+          'border-[rgba(234,179,8,0.45)] bg-[rgba(254,252,232,0.98)] text-[var(--text)] hover:bg-[rgba(254,249,195,0.95)] hover:border-[rgba(234,179,8,0.55)]',
         variant === 'ghost' &&
-          'border-transparent bg-transparent text-[var(--text)] hover:bg-[rgba(15,23,42,0.06)]',
+          'border-transparent bg-transparent text-[var(--text)] hover:bg-[rgba(253,224,71,0.2)] active:bg-[rgba(253,224,71,0.28)]',
         variant === 'danger' &&
           'border-[rgba(239,68,68,0.35)] bg-[rgba(254,226,226,0.85)] text-[rgba(127,29,29,0.95)] hover:bg-[rgba(254,202,202,0.95)]',
         className,

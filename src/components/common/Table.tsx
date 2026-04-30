@@ -68,7 +68,7 @@ export function DataTable<T extends object>({
                   )}
                 >
                   {columns.map((col) => (
-                    <td key={col.header} className={cn('px-4 py-3 text-sm align-middle', sep, col.className)}>
+                    <td key={col.header} className={cn('px-4 py-2 text-sm align-middle', sep, col.className)}>
                       {col.render(row)}
                     </td>
                   ))}

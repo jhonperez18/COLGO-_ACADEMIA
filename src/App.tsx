@@ -34,7 +34,7 @@ function App() {
           <div className="text-center">
             <h1 className="text-4xl font-bold text-[var(--text)]">403</h1>
             <p className="text-[var(--muted)] mt-2">No tienes permiso para acceder a este recurso</p>
-            <a href="/login" className="mt-4 inline-block px-4 py-2 bg-[var(--accent)] text-white rounded">
+            <a href="/login" className="mt-4 inline-block rounded px-4 py-2 bg-[var(--accent)] text-slate-900 font-medium">
               Volver al login
             </a>
           </div>

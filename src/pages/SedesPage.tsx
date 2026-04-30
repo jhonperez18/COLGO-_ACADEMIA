@@ -39,12 +39,45 @@ export function SedesPage() {
     <div className="flex flex-col gap-5">
       <Toast message="Descarga completada" show={showToast} onClose={() => setShowToast(false)} />
       <Card className={cn(backofficePanelCardClass, 'p-4 sm:p-5')}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[var(--text)]">Sedes</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">Cards para Medellín, Bogotá y Virtual (mock).</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="order-2 flex flex-wrap gap-3 sm:order-1 sm:flex-1">
+            <div className="w-full sm:w-[16rem]">
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Cursos activos</span>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg border border-[rgba(251,191,36,0.30)] bg-[rgba(251,191,36,0.10)]">
+                    <Building2 size={16} className="text-[var(--accent)]" />
+                  </span>
+                  <p className="text-sm font-semibold text-[var(--text)]">{totals.activeCourses}</p>
+                </div>
+              </div>
+            </div>
+            <div className="w-full sm:w-[16rem]">
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Estudiantes</span>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg border border-[rgba(251,191,36,0.30)] bg-[rgba(251,191,36,0.10)]">
+                    <Users size={16} className="text-[var(--accent)]" />
+                  </span>
+                  <p className="text-sm font-semibold text-[var(--text)]">{totals.students}</p>
+                </div>
+              </div>
+            </div>
+            <div className="w-full sm:w-[16rem]">
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Acciones</span>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex justify-center">
+                  <Badge tone="accent">Optimización</Badge>
+                </div>
+                <div className="flex justify-center">
+                  <Badge tone="neutral">Cohortes</Badge>
+                </div>
+              </div>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="order-1 flex w-full flex-wrap justify-end gap-2 sm:order-2 sm:w-auto">
             <Button variant="secondary" leftIcon={<MapPinned size={16} />} onClick={() => setShowMapModal(true)}>
               Ver mapa
             </Button>
@@ -72,38 +105,6 @@ export function SedesPage() {
             >
               Exportar
             </Button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4">
-            <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-xl border border-[rgba(251,191,36,0.30)] bg-[rgba(251,191,36,0.10)]">
-                <Building2 size={16} className="text-[var(--accent)]" />
-              </span>
-              <div>
-                <p className="text-xs font-semibold text-[var(--muted)]">Cursos activos</p>
-                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{totals.activeCourses}</p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4">
-            <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-xl border border-[rgba(251,191,36,0.30)] bg-[rgba(251,191,36,0.10)]">
-                <Users size={16} className="text-[var(--accent)]" />
-              </span>
-              <div>
-                <p className="text-xs font-semibold text-[var(--muted)]">Estudiantes</p>
-                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{totals.students}</p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4">
-            <p className="text-xs font-semibold text-[var(--muted)]">Acciones</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Badge tone="accent">Optimización de capacidad</Badge>
-              <Badge tone="neutral">Cohortes por sede</Badge>
-            </div>
           </div>
         </div>
       </Card>

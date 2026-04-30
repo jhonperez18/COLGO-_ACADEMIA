@@ -121,7 +121,7 @@ export function Modal({
           <button
             type="button"
             className={cn(
-              'cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--panel-2)] font-medium text-[var(--text)] hover:bg-[#f1f5f9]',
+              'cursor-pointer rounded-lg border border-[rgba(234,179,8,0.45)] bg-[rgba(254,252,232,0.98)] font-medium text-[var(--text)] hover:bg-[rgba(254,249,195,0.95)] hover:border-[rgba(234,179,8,0.55)]',
               compact ? 'px-2 py-0.5 text-[11px]' : 'px-3 py-1 text-xs',
             )}
             onClick={onClose}

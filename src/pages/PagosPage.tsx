@@ -5,8 +5,8 @@ import { Button } from '../components/common/Button'
 import { DataTable, type Column } from '../components/common/Table'
 import { Modal } from '../components/common/Modal'
 import { type Payment, type PaymentStatus, formatDate, formatCOP } from '../services/mockData'
-import { Eye, RefreshCcw, Search } from 'lucide-react'
-import { backofficePanelCardClass } from '../components/layout/backofficeVisual'
+import { Eye, Search } from 'lucide-react'
+import { backofficeAmberInsetHairline, backofficePanelCardClass } from '../components/layout/backofficeVisual'
 import { cn } from '../utils/cn'
 import { useColgo } from '../state/useColgo'
 import { saveBlobAs } from '../utils/saveFileAs'
@@ -25,7 +25,6 @@ export function PagosPage() {
   const [status, setStatus] = useState<'Todos' | PaymentStatus>('Todos')
   const [selected, setSelected] = useState<Payment | null>(null)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
-  const [showSyncModal, setShowSyncModal] = useState(false)
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
@@ -86,20 +85,57 @@ export function PagosPage() {
     <div className="flex flex-col gap-5">
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-5">
-          <Card className={cn(backofficePanelCardClass, 'p-4 sm:p-5')}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-[var(--text)]">Pagos</p>
-                <p className="mt-1 text-xs text-[var(--muted)]">Tabla con estados: pendiente, aprobado y rechazado (mock).</p>
+          <Card className={cn(backofficePanelCardClass, 'p-3 sm:p-4')}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="order-2 flex w-full flex-wrap items-end gap-3 sm:order-1 sm:w-auto sm:min-w-[16rem] sm:flex-1 sm:items-center">
+                <label className="block w-full sm:w-auto sm:min-w-[16rem] sm:max-w-[22rem] sm:flex-1">
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Buscar</span>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--muted)]">
+                      <Search size={16} />
+                    </div>
+                    <input
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder="Estudiante o curso"
+                      className={cn(
+                        'h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] pl-9 pr-3 text-sm text-[var(--text)] placeholder:text-[var(--subtle)]',
+                        backofficeAmberInsetHairline,
+                      )}
+                    />
+                  </div>
+                </label>
+
+                <label className="block w-full sm:w-[11.5rem] sm:shrink-0">
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Estado</span>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as 'Todos' | PaymentStatus)}
+                    className={cn(
+                      'h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 text-sm text-[var(--text)]',
+                      backofficeAmberInsetHairline,
+                    )}
+                  >
+                    <option value="Todos">Todos</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Aprobado">Aprobado</option>
+                    <option value="Rechazado">Rechazado</option>
+                  </select>
+                </label>
+
+                <div className="block w-full sm:w-[9.5rem] sm:shrink-0">
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Resultados</span>
+                  <div className={cn('w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2', backofficeAmberInsetHairline)}>
+                    <p className="text-sm font-semibold text-[var(--text)]">{filtered.length} pagos</p>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" leftIcon={<RefreshCcw size={16} />} onClick={() => setShowSyncModal(true)}>
-                  Sincronizar
-                </Button>
-                <Button variant="primary" onClick={() => setShowRegisterModal(true)}>
+              <div className="order-1 flex w-full justify-end gap-2 sm:order-2 sm:w-auto">
+                <Button size="sm" variant="primary" onClick={() => setShowRegisterModal(true)}>
                   Registrar pago
                 </Button>
                 <Button
+                  size="sm"
                   variant="secondary"
                   onClick={() => {
                     void (async () => {
@@ -125,44 +161,6 @@ export function PagosPage() {
                 >
                   Exportar
                 </Button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Buscar</span>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--muted)]">
-                    <Search size={16} />
-                  </div>
-                  <input
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="Estudiante o curso"
-                    className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-9 pr-3 text-sm text-[var(--text)] placeholder:text-[var(--subtle)]"
-                  />
-                </div>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Estado</span>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as 'Todos' | PaymentStatus)}
-                  className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 text-sm text-[var(--text)]"
-                >
-                  <option value="Todos">Todos</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Aprobado">Aprobado</option>
-                  <option value="Rechazado">Rechazado</option>
-                </select>
-              </label>
-
-              <div className="flex items-end">
-                <div className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
-                  <p className="text-xs font-semibold text-[var(--muted)]">Resultados</p>
-                  <p className="mt-1 text-sm font-semibold text-[var(--text)]">{filtered.length} pagos</p>
-                </div>
               </div>
             </div>
           </Card>
@@ -299,13 +297,6 @@ export function PagosPage() {
         </div>
       </Modal>
 
-      {/* Modal sincronizar */}
-      <Modal open={showSyncModal} onClose={() => setShowSyncModal(false)} title="Sincronizar pagos">
-        <div className="flex flex-col gap-5">
-          <p className="text-sm">(Mock) Aquí se mostraría el estado de la sincronización con el backend.</p>
-          <Button variant="primary" onClick={() => setShowSyncModal(false)}>Cerrar</Button>
-        </div>
-      </Modal>
     </div>
   )
 }

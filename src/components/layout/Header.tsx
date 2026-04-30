@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Bell,
   Brush,
@@ -7,14 +6,11 @@ import {
   ChevronDown,
   Menu,
   Monitor,
-  Search,
   Settings,
   ShieldCheck,
   Type,
   UserCircle2,
 } from 'lucide-react'
-import type { SearchSuggestion } from '../../services/mockData'
-import { Badge } from '../common/Badge'
 import { cn } from '../../utils/cn'
 import { formatDate } from '../../services/mockData'
 import { getSessionToken, loadSessionUser, persistSession } from '../../state/authSession'
@@ -60,16 +56,11 @@ const mockNotifications: Notification[] = [
 
 export function Header({
   onOpenSidebar,
-  suggestions,
   activePageLabel,
 }: {
   onOpenSidebar: () => void
-  suggestions: SearchSuggestion[]
   activePageLabel: string
 }) {
-  const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-  const [searchOpen, setSearchOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [userOpen, setUserOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -108,19 +99,10 @@ export function Header({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const sessionUser = loadSessionUser()
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return []
-    return suggestions
-      .filter((s) => (s.label + ' ' + s.description).toLowerCase().includes(q))
-      .slice(0, 6)
-  }, [query, suggestions])
-
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
       if (!rootRef.current) return
       if (rootRef.current.contains(e.target as Node)) return
-      setSearchOpen(false)
       setNotifOpen(false)
       setUserOpen(false)
     }
@@ -228,8 +210,8 @@ export function Header({
       document.documentElement.style.setProperty('--accent', '#34d399')
       document.documentElement.style.setProperty('--accent-2', '#10b981')
     } else {
-      document.documentElement.style.setProperty('--accent', '#fbbf24')
-      document.documentElement.style.setProperty('--accent-2', '#f59e0b')
+      document.documentElement.style.setProperty('--accent', '#fde047')
+      document.documentElement.style.setProperty('--accent-2', '#facc15')
     }
 
     if (uiSettings.uiSurface === 'clean') {
@@ -337,8 +319,8 @@ export function Header({
       <div className={backofficeBottomAccentClass} aria-hidden />
       <div className={backofficeDarkOrbTopRight} aria-hidden />
       <div className={backofficeDarkOrbBottomLeft} aria-hidden />
-      <div className={cn(backofficeTopHeaderPadClass, 'flex flex-wrap items-center gap-3')}>
-          <div className="flex items-center gap-3">
+      <div className={cn(backofficeTopHeaderPadClass, 'flex flex-wrap items-center gap-4 md:gap-6 lg:gap-8')}>
+          <div className="flex min-w-0 shrink-0 items-center gap-3">
             <button
               type="button"
               onClick={onOpenSidebar}
@@ -347,64 +329,20 @@ export function Header({
             >
               <Menu size={18} />
             </button>
-            <div>
-              <h1 className="text-base font-semibold tracking-tight text-white">{activePageLabel}</h1>
+            <div className="min-w-0 ml-2 sm:ml-3 lg:ml-4">
+              <h1
+                className="inline-block max-w-[min(100%,18rem)] truncate rounded-lg border border-amber-300/55 bg-gradient-to-r from-slate-900/65 via-slate-800/60 to-amber-900/35 px-2.5 py-1 text-sm font-semibold tracking-tight text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] sm:max-w-xs sm:px-3 sm:text-base"
+                title={activePageLabel}
+              >
+                {activePageLabel}
+              </h1>
             </div>
           </div>
 
           <div
             ref={rootRef}
-            className="ml-auto flex w-full min-w-0 items-center gap-2 md:w-auto md:flex-1 md:gap-3"
+            className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 pl-1 pr-1 sm:gap-2 sm:pr-2 md:gap-2.5 md:pl-4 lg:gap-3 lg:pl-6 lg:pr-3"
           >
-            <div className="relative min-w-0 w-full md:max-w-xl md:flex-1">
-              <label className="sr-only" htmlFor="global-search">
-                Buscar
-              </label>
-              <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-white/70">
-                <Search size={16} />
-              </div>
-              <input
-                id="global-search"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
-                  setSearchOpen(true)
-                }}
-                onFocus={() => setSearchOpen(true)}
-                placeholder="Buscar estudiantes, cursos, sedes..."
-                className="h-10 w-full rounded-xl border border-white/20 bg-white/10 px-9 text-sm text-white placeholder:text-white/65"
-              />
-
-            {searchOpen && filtered.length > 0 ? (
-              <div className="absolute left-0 right-0 mt-2 overflow-hidden rounded-xl border border-white/20 bg-slate-900/95 shadow-soft backdrop-blur-sm">
-                <div className="px-3 py-2 text-xs font-semibold text-[var(--muted)]">Sugerencias</div>
-                <div className="max-h-72 overflow-auto">
-                  {filtered.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        navigate(s.to)
-                        setQuery('')
-                        setSearchOpen(false)
-                      }}
-                      className="flex w-full items-start gap-3 px-3 py-3 text-left transition hover:bg-white/10"
-                    >
-                      <div className="pt-0.5">
-                        <Badge tone={s.tag === 'Curso' ? 'accent' : 'neutral'}>{s.tag}</Badge>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-white">{s.label}</div>
-                        <div className="truncate text-xs text-slate-300">{s.description}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="ml-auto flex shrink-0 items-center gap-1.5 pr-1 sm:gap-2 sm:pr-2 md:gap-2.5 lg:gap-3 lg:pr-3">
             <div className="relative">
               <button
                 type="button"
@@ -531,7 +469,6 @@ export function Header({
             </div>
           </div>
         </div>
-      </div>
 
       <Modal
         open={profileOpen}

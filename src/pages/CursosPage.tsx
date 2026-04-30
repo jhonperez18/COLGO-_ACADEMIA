@@ -15,7 +15,7 @@ import {
   inscribirEstudiantesCurso,
 } from '../services/apiClient'
 import { Search } from 'lucide-react'
-import { backofficePanelCardClass } from '../components/layout/backofficeVisual'
+import { backofficeAmberInsetHairline, backofficePanelCardClass } from '../components/layout/backofficeVisual'
 import { cn } from '../utils/cn'
 import { saveBlobAs } from '../utils/saveFileAs'
 import { withOptimisticUpdate } from '../utils/optimistic'
@@ -323,84 +323,107 @@ export function CursosPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <Card className={cn(backofficePanelCardClass, 'p-4 sm:p-5')}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[var(--text)]">Cursos</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">Gestión académica conectada: programas, módulos, asignación docente e inscripción.</p>
+      <Card className={cn(backofficePanelCardClass, 'p-3 sm:p-4')}>
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+          <div className="order-2 min-w-0 flex-1 lg:order-1">
+            <div className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)]/60 p-2 sm:grid-cols-2 sm:gap-x-3 sm:gap-y-2 sm:p-2.5 lg:grid-cols-12 lg:items-center">
+              <label className="flex min-w-0 flex-col gap-0.5 sm:col-span-1 lg:col-span-6">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Buscar</span>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-[var(--muted)]">
+                    <Search size={15} />
+                  </div>
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Título, nivel o descripción"
+                    className={cn(
+                      'h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] pl-8 pr-2.5 text-sm text-[var(--text)] placeholder:text-[var(--subtle)]',
+                      backofficeAmberInsetHairline,
+                    )}
+                  />
+                </div>
+              </label>
+              <label className="flex min-w-0 flex-col gap-0.5 sm:col-span-1 lg:col-span-4 lg:max-w-[18rem]">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Programa</span>
+                <select
+                  value={programaFiltro}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setProgramaFiltro(value === 'todos' ? 'todos' : Number(value))
+                  }}
+                  className={cn(
+                    'h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2.5 text-sm text-[var(--text)]',
+                    backofficeAmberInsetHairline,
+                  )}
+                >
+                  <option value="todos">Todos los programas</option>
+                  {programas.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre} ({p.codigo})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-2 sm:col-span-2 lg:col-span-2">
+                <div className="flex min-w-0 flex-col">
+                  <span className="mb-1 flex min-h-[1.65rem] items-end text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Cursos</span>
+                  <div
+                    className={cn(
+                      'flex flex-col justify-center rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5 text-center sm:text-left',
+                      backofficeAmberInsetHairline,
+                    )}
+                  >
+                    <p className="text-base font-semibold tabular-nums leading-tight text-[var(--text)]">{metricas.totalCursos}</p>
+                  </div>
+                </div>
+                <div className="flex min-w-0 flex-col">
+                  <span className="mb-1 flex min-h-[1.65rem] items-end text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Programas activos</span>
+                  <div
+                    className={cn(
+                      'flex flex-col justify-center rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5 text-center sm:text-left',
+                      backofficeAmberInsetHairline,
+                    )}
+                  >
+                    <p className="text-base font-semibold tabular-nums leading-tight text-[var(--text)]">{metricas.programasActivos}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setShowProgramaModal(true)}>
+          <div className="order-1 flex w-full flex-wrap justify-end gap-2 lg:order-2 lg:w-auto lg:shrink-0">
+            <Button size="sm" variant="secondary" onClick={() => setShowProgramaModal(true)}>
               Nuevo programa
             </Button>
-            <Button variant="primary" onClick={load}>
+            <Button size="sm" variant="primary" onClick={load}>
               Actualizar
             </Button>
-            <Button variant="secondary" onClick={handleExport}>
+            <Button size="sm" variant="secondary" onClick={handleExport}>
               Exportar
             </Button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <label className="block">
-            <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Buscar</span>
-            <div className="relative">
-              <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--muted)]">
-                <Search size={16} />
-              </div>
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Título, nivel o descripción"
-                className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-9 pr-3 text-sm text-[var(--text)] placeholder:text-[var(--subtle)]"
-              />
-            </div>
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Programa</span>
-            <select
-              value={programaFiltro}
-              onChange={(e) => {
-                const value = e.target.value
-                setProgramaFiltro(value === 'todos' ? 'todos' : Number(value))
-              }}
-              className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 text-sm text-[var(--text)]"
-            >
-              <option value="todos">Todos los programas</option>
-              {programas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} ({p.codigo})
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
-              <p className="text-xs text-[var(--muted)]">Cursos</p>
-              <p className="text-lg font-semibold text-[var(--text)]">{metricas.totalCursos}</p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
-              <p className="text-xs text-[var(--muted)]">Programas activos</p>
-              <p className="text-lg font-semibold text-[var(--text)]">{metricas.programasActivos}</p>
-            </div>
           </div>
         </div>
       </Card>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Card>
-          <p className="text-xs text-[var(--muted)]">Cursos con docente</p>
-          <p className="mt-1 text-xl font-semibold text-[var(--text)]">{metricas.conDocente}</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-[var(--muted)]">Cursos sin docente</p>
-          <p className="mt-1 text-xl font-semibold text-[var(--text)]">{metricas.sinDocente}</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-[var(--muted)]">Ocupación promedio</p>
-          <p className="mt-1 text-xl font-semibold text-[var(--text)]">{metricas.ocupacionPromedio}%</p>
-        </Card>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Cursos con docente</span>
+          <Card>
+            <p className="text-xl font-semibold text-[var(--text)]">{metricas.conDocente}</p>
+          </Card>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Cursos sin docente</span>
+          <Card>
+            <p className="text-xl font-semibold text-[var(--text)]">{metricas.sinDocente}</p>
+          </Card>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Ocupación promedio</span>
+          <Card>
+            <p className="text-xl font-semibold text-[var(--text)]">{metricas.ocupacionPromedio}%</p>
+          </Card>
+        </div>
       </div>
 
       <Card>

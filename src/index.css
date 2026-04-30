@@ -4,8 +4,9 @@
   :root {
     color-scheme: light;
 
-    --accent: #fbbf24; /* amarillo */
-    --accent-2: #f59e0b;
+    /* Amarillo institucional (mismo tono en toda la app vía --accent) */
+    --accent: #fde047;
+    --accent-2: #facc15;
 
     --bg: #f3f4f6;
     --surface: #ffffff;
@@ -27,8 +28,8 @@
     margin: 0;
     display: block;
     background:
-      radial-gradient(900px circle at 10% 0%, rgba(251, 191, 36, 0.12), transparent 55%),
-      radial-gradient(700px circle at 80% 20%, rgba(251, 191, 36, 0.06), transparent 60%),
+      radial-gradient(900px circle at 10% 0%, rgba(253, 224, 71, 0.22), transparent 55%),
+      radial-gradient(700px circle at 80% 20%, rgba(253, 224, 71, 0.1), transparent 60%),
       var(--bg);
     color: var(--text);
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
@@ -40,7 +41,7 @@
   }
 
   ::selection {
-    background: rgba(251, 191, 36, 0.25);
+    background: rgba(253, 224, 71, 0.42);
   }
 
   #root {
@@ -50,8 +51,8 @@
 
   :focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25);
-    border-color: rgba(251, 191, 36, 0.7);
+    box-shadow: 0 0 0 3px rgba(253, 224, 71, 0.45);
+    border-color: rgba(234, 179, 8, 0.72);
   }
 }
 

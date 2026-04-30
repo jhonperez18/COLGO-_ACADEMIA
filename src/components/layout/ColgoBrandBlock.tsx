@@ -76,7 +76,7 @@ export function ColgoBrandBlock({
             alignHeightWithSibling ? 'mt-auto shrink-0' : 'mt-3',
           )}
         >
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)] shadow-[0_0_8px_rgba(251,191,36,0.65)]" />
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)] shadow-[0_0_12px_rgba(253,224,71,0.7)]" />
           <span className="text-[11px] font-medium uppercase tracking-wider text-slate-300">{badgeLabel}</span>
         </div>
       </div>

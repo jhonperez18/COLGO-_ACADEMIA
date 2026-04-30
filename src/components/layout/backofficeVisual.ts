@@ -40,6 +40,12 @@ export const backofficeTopTwoBlockRightClass = 'min-w-0 self-stretch lg:col-star
 /** Para `<Button variant="secondary" className={backofficeHeroBtnOnDark} />` sobre cabecera oscura. */
 export const backofficeHeroBtnOnDark = 'border-white/20 bg-white/10 text-white hover:bg-white/18 shadow-none'
 
-/** Tarjeta de contenido alineada a la ficha (resumen / tablas). */
+/**
+ * Raya ámbar fina por dentro del recuadro (misma familia que la tabla resumen).
+ * `ring-inset` evita que “coma” espacio fuera del borde gris.
+ */
+export const backofficeAmberInsetHairline = 'ring-1 ring-inset ring-amber-300/30'
+
+/** Tarjeta de contenido alineada a la ficha (resumen / tablas). El rayado ámbar lo añade `<Card />` vía `backofficeAmberInsetHairline`. */
 export const backofficePanelCardClass =
   'rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-md'
