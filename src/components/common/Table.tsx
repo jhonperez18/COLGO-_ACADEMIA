@@ -35,8 +35,8 @@ export function DataTable<T extends object>({
               <th
                 key={col.header}
                 className={cn(
-                  'sticky top-0 z-0 border-b border-[var(--accent)] bg-[var(--panel-2)]',
-                  'px-4 py-3 pb-2.5 pt-0 text-left align-bottom text-xs font-semibold tracking-wide text-[var(--muted)] uppercase',
+                  'sticky top-0 z-[1] border-b-2 border-[var(--accent)] bg-[var(--panel-2)]',
+                  'px-4 py-3.5 text-left align-middle text-sm font-extrabold uppercase tracking-wide text-[var(--text)] antialiased',
                   col.headerClassName,
                 )}
               >
@@ -53,25 +53,28 @@ export function DataTable<T extends object>({
               </td>
             </tr>
           ) : (
-            rows.map((row, index) => (
-              <tr
-                key={getRowId(row)}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn(
-                  'border-b border-[var(--border)] transition-colors',
-                  index % 2 !== 0 ? 'bg-slate-50/90' : 'bg-white',
-                  onRowClick
-                    ? 'cursor-pointer hover:bg-amber-50/90 active:bg-amber-100/80'
-                    : 'hover:bg-amber-50/50',
-                )}
-              >
-                {columns.map((col) => (
-                  <td key={col.header} className={cn('px-4 py-3 text-sm', col.className)}>
-                    {col.render(row)}
-                  </td>
-                ))}
-              </tr>
-            ))
+            rows.map((row, index) => {
+              const sep = index < rows.length - 1 ? 'border-b border-amber-300/55' : ''
+              return (
+                <tr
+                  key={getRowId(row)}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={cn(
+                    'transition-[background-color,box-shadow] duration-150',
+                    index % 2 === 0 ? 'bg-[var(--surface)]' : 'bg-[var(--panel-2)]',
+                    onRowClick
+                      ? 'cursor-pointer hover:bg-amber-50/80 hover:shadow-[inset_0_0_0_9999px_rgba(251,191,36,0.06)] active:bg-amber-100/70'
+                      : 'hover:bg-amber-50/75 hover:shadow-[inset_0_0_0_9999px_rgba(251,191,36,0.06)]',
+                  )}
+                >
+                  {columns.map((col) => (
+                    <td key={col.header} className={cn('px-4 py-3 text-sm align-middle', sep, col.className)}>
+                      {col.render(row)}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })
           )}
         </tbody>
       </table>

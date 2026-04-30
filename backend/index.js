@@ -26,23 +26,35 @@ const port = process.env.PORT || 3001;
 // Configurar CORS para múltiples orígenes
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:5174')
   .split(',')
-  .map(origin => origin.trim());
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+/** Preview de Vercel: orígenes tipo https://proyecto-xxx-usuario.vercel.app (cambia en cada deploy). */
+function isVercelAppPreviewOrigin(origin) {
+  const on = ['1', 'true', 'yes'].includes(String(process.env.CORS_ALLOW_VERCEL || '').trim().toLowerCase());
+  if (!on) return false;
+  try {
+    const host = new URL(origin).hostname;
+    return host === 'vercel.app' || host.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
 
 // Middlewares globales
 app.use(requestLogger);
-app.use(cors({
-  origin: (origin, callback) => {
-    // Permitir requests sin origin (como desde Postman)
-    if (!origin) return callback(null, true);
-    
-    if (corsOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS not allowed'));
-    }
-  },
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (corsOrigins.includes(origin) || isVercelAppPreviewOrigin(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 startSseHeartbeat();

@@ -699,9 +699,9 @@ export default function AdminMiembroPanelPage() {
           ]
         : []
   const resumenTablaCampos = [...resumenTablaCamposBase, ...resumenTablaCamposRol]
-  const resumenTablaTituloTextClass = 'text-base font-bold tracking-tight text-[var(--text)]'
-  const resumenTablaTituloThBaseClass =
-    'border-b border-[var(--accent)] px-3 pb-2.5 pt-0 text-left align-bottom font-normal'
+  /** Misma pauta que `DataTable` (Table.tsx): cabecera + filas cebra + hover */
+  const resumenTablaHeadThClass =
+    'sticky top-0 z-[1] border-b-2 border-[var(--accent)] bg-[var(--panel-2)] px-4 py-3.5 text-left align-middle text-sm font-extrabold uppercase tracking-wide text-[var(--text)] antialiased'
   const tabCardClass = cn(backofficePanelCardClass, 'bg-gradient-to-b from-[var(--surface)] to-[var(--panel-2)] p-4 sm:p-5')
   const tabHeaderTitleClass = 'text-base font-semibold tracking-tight text-[var(--text)]'
   const tabInnerBlockClass = 'rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-4'
@@ -900,51 +900,60 @@ export default function AdminMiembroPanelPage() {
                 </div>
               ) : null}
             </div>
-            <div className="border-t border-[var(--border)] bg-[var(--panel-2)]/40 px-3 py-3 sm:px-4 sm:py-3.5">
-              <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-0 text-sm">
-                <thead>
-                  <tr>
-                    <th
-                      scope="col"
-                      className={`${resumenTablaTituloThBaseClass} w-[40%] min-w-[10rem] sm:w-[45%]`}
-                    >
-                      <span className={resumenTablaTituloTextClass}>Datos de campo</span>
-                    </th>
-                    <th scope="col" className={`${resumenTablaTituloThBaseClass} min-w-[6.5rem] whitespace-nowrap`}>
-                      <span className={resumenTablaTituloTextClass}>Valor actual</span>
-                    </th>
-                    <th scope="col" className={`${resumenTablaTituloThBaseClass} min-w-[6.5rem] whitespace-nowrap`}>
-                      <span className={resumenTablaTituloTextClass}>Estado</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resumenTablaCampos.map((row, index) => (
-                    <tr
-                      key={row.campo}
-                      className={cn(
-                        'border-b border-[var(--border)] transition-colors hover:bg-amber-50/50',
-                        index % 2 !== 0 ? 'bg-slate-50/90' : 'bg-white',
-                      )}
-                    >
-                      <th scope="row" className="px-4 py-3 text-left text-sm font-semibold text-[var(--text)]">
-                        {row.campo}
+            <div className="border-t border-[var(--border)] bg-[var(--surface)]/80 px-0 py-0 sm:px-0">
+              <div className="overflow-x-auto rounded-b-xl">
+                <table className="min-w-full border-separate border-spacing-0 text-sm">
+                  <thead>
+                    <tr>
+                      <th scope="col" className={cn(resumenTablaHeadThClass, 'w-[40%] min-w-[10rem] sm:w-[45%]')}>
+                        Datos de campo
                       </th>
-                      <td className="px-4 py-3 text-sm font-normal text-[var(--text)]">{row.valor || '—'}</td>
-                      <td className="px-4 py-3 text-right text-sm">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            row.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {row.ok ? 'Completo' : 'Pendiente'}
-                        </span>
-                      </td>
+                      <th scope="col" className={cn(resumenTablaHeadThClass, 'min-w-[6.5rem] whitespace-nowrap')}>
+                        Valor actual
+                      </th>
+                      <th scope="col" className={cn(resumenTablaHeadThClass, 'min-w-[6.5rem] whitespace-nowrap text-right')}>
+                        Estado
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {resumenTablaCampos.map((row, index) => {
+                      const sep =
+                        index < resumenTablaCampos.length - 1 ? 'border-b border-amber-300/55' : ''
+                      return (
+                      <tr
+                        key={row.campo}
+                        className={cn(
+                          'transition-[background-color,box-shadow] duration-150',
+                          index % 2 === 0 ? 'bg-[var(--surface)]' : 'bg-[var(--panel-2)]',
+                          'hover:bg-amber-50/75 hover:shadow-[inset_0_0_0_9999px_rgba(251,191,36,0.06)]',
+                        )}
+                      >
+                        <th
+                          scope="row"
+                          className={cn(
+                            'px-4 py-3 text-left align-middle text-sm font-semibold text-[var(--text)]',
+                            sep,
+                          )}
+                        >
+                          {row.campo}
+                        </th>
+                        <td className={cn('px-4 py-3 align-middle text-sm text-[var(--text)]', sep)}>{row.valor || '—'}</td>
+                        <td className={cn('px-4 py-3 text-right align-middle text-sm', sep)}>
+                          <span
+                            className={cn(
+                              'inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums',
+                              row.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800',
+                            )}
+                          >
+                            {row.ok ? 'Completo' : 'Pendiente'}
+                          </span>
+                        </td>
+                      </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

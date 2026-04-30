@@ -9,7 +9,13 @@ export default defineConfig(({ mode }) => {
   const pick = (key: string) => String(fileEnv[key] ?? process.env[key] ?? '').trim()
 
   /** Vercel: usa VITE_* . Si copiaste variables de Next.js, NEXT_PUBLIC_SUPABASE_* también se toma en el build. */
-  const apiUrl = (pick('VITE_API_URL') || 'http://localhost:3001/api').replace(/\/$/, '')
+  const rawApi = pick('VITE_API_URL')
+  if (process.env.VERCEL === '1' && !rawApi) {
+    throw new Error(
+      'VITE_API_URL no está definida en Vercel. Settings → Environment Variables → añade VITE_API_URL = https://TU-BACKEND-PUBLICO/api (sin barra final antes de /api) y vuelve a desplegar.',
+    )
+  }
+  const apiUrl = (rawApi || 'http://localhost:3001/api').replace(/\/$/, '')
   const supabaseUrl = pick('VITE_SUPABASE_URL') || pick('NEXT_PUBLIC_SUPABASE_URL')
   const supabaseKey = pick('VITE_SUPABASE_ANON_KEY') || pick('NEXT_PUBLIC_SUPABASE_ANON_KEY')
 

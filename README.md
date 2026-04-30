@@ -185,6 +185,8 @@ Sigue la guía en [QUICK_START.md](QUICK_START.md) para instalar dependencias y 
 4. Vercel detecta Vite automáticamente y despliega el frontend.
 5. Accede a tu app en la URL pública que te da Vercel.
 
+**URL de producción (importante):** abre el enlace con el botón **Visit** del último deploy o en **Settings → Domains**. El subdominio de Vercel usa la palabra en inglés **`project-`**, no **`proyecto-`**. Por ejemplo, para este repo el sitio que responde es **`https://project-bm9ko.vercel.app`**. Si escribes `https://proyecto-bm9ko.vercel.app` verás `404 DEPLOYMENT_NOT_FOUND` (ese host no existe). En el backend define **`FRONTEND_URL`** con la misma URL base (sin `/login`) para que los correos de invitación apunten bien.
+
 **Vincular este repo con tu proyecto de Vercel desde la terminal (no sustituye iniciar sesión en el navegador la primera vez):**
 
 1. En la raíz del repo: `npm run vercel:login` (solo la primera vez).
