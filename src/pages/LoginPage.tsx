@@ -1,6 +1,7 @@
 import { useState, type FormEvent, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/common/Button'
+import { resolveApiBaseUrl } from '../config/apiBaseUrl'
 import { login } from '../services/apiClient'
 import { clearSession, getDashboardPathByRole, loadSessionUser, persistSession } from '../state/authSession'
 
@@ -140,24 +141,20 @@ export function LoginPage() {
                 <strong>Conecta con backend:</strong>{' '}
                 {import.meta.env.DEV ? (
                   <>en local ejecuta <code className="text-[var(--text)]">npm run server</code> (puerto 3001).</>
-                ) : import.meta.env.VITE_API_URL ? (
+                ) : (
                   <>
-                    API: <code className="break-all text-[var(--text)]">{String(import.meta.env.VITE_API_URL)}</code>
-                    {String(import.meta.env.VITE_API_URL).includes('localhost') ? (
+                    API: <code className="break-all text-[var(--text)]">{resolveApiBaseUrl()}</code>
+                    {resolveApiBaseUrl().includes('localhost') ? (
                       <span className="mt-2 block font-medium text-red-700">
                         Este build apunta a localhost: en Vercel → Environment Variables añade{' '}
-                        <code className="text-[var(--text)]">VITE_API_URL</code> con la URL HTTPS de tu API (ej. Railway) y
-                        redespliega.
+                        <code className="text-[var(--text)]">VITE_API_URL</code> con la URL HTTPS de tu API y redespliega.
                       </span>
                     ) : null}
                   </>
-                ) : (
-                  <>en Vercel define <code className="text-[var(--text)]">VITE_API_URL</code> con la URL pública de tu API y vuelve a desplegar.</>
                 )}
               </p>
             </div>
-            {import.meta.env.PROD &&
-            String(import.meta.env.VITE_API_URL || '').includes('localhost') ? (
+            {import.meta.env.PROD && resolveApiBaseUrl().includes('localhost') ? (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 El login falla porque el sitio intenta llamar a <strong>localhost</strong> desde internet. Configura{' '}
                 <code className="rounded bg-red-100 px-1">VITE_API_URL</code> en Vercel y en el backend{' '}

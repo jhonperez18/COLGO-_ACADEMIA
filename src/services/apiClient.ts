@@ -1,7 +1,8 @@
+import { resolveApiBaseUrl } from '../config/apiBaseUrl';
 import { clearSession, getSessionToken } from '../state/authSession';
 
-/** En Vercel define VITE_API_URL (p. ej. https://tu-backend.railway.app/api) — nunca localhost en producción. */
-const API_BASE_URL = String(import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+/** Producción: `/_backend/api` en Vercel; override con `VITE_API_URL` si hace falta. */
+const API_BASE_URL = resolveApiBaseUrl();
 const REALTIME_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
 
 interface FetchOptions extends RequestInit {

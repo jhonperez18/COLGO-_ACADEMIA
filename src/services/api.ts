@@ -2,7 +2,9 @@
  * Servicio de API para comunicarse con el backend
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { resolveApiBaseUrl } from '../config/apiBaseUrl';
+
+const API_URL = resolveApiBaseUrl();
 
 export class ApiError extends Error {
   public status: number;
