@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
       'VITE_API_URL no está definida en Vercel. Settings → Environment Variables → añade VITE_API_URL = https://TU-BACKEND-PUBLICO/api (sin barra final antes de /api) y vuelve a desplegar.',
     )
   }
-  const apiUrl = (rawApi || '/api/api').replace(/\/$/, '')
+  const apiUrl = (rawApi || '/api').replace(/\/$/, '')
   const supabaseUrl = pick('VITE_SUPABASE_URL') || pick('NEXT_PUBLIC_SUPABASE_URL')
   const supabaseKey = pick('VITE_SUPABASE_ANON_KEY') || pick('NEXT_PUBLIC_SUPABASE_ANON_KEY')
 

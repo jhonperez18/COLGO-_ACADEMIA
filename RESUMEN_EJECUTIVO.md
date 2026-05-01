@@ -156,7 +156,7 @@ VITE v8.0.2 ready in 522 ms
 ```
 ✅ Servidor COLGO ejecutándose
 🔌 URL: /api
-📊 API: /api/api
+📊 API: /api
 ```
 
 ### Verificación 2: Navegador funciona

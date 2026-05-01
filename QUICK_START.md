@@ -58,9 +58,9 @@ Ahora tienes:
 ```
 
 ### Probar la API:
-- Health check: /api/api/health
-- DB test: /api/api/db-test
-- Obtener estudiantes: /api/api/students
+- Health check: /api/health
+- DB test: /api/db-test
+- Obtener estudiantes: /api/students
 
 ---
 

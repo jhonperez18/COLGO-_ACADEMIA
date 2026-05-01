@@ -18,8 +18,8 @@ Deberías ver esto:
 ```
 ✅ Conexión MySQL exitosa. Versión: 8.0.xx
 ✅ Servidor COLGO ejecutándose en /api
-🏥 Health check en /api/api/health
-🔗 DB test en /api/api/db-test
+🏥 Health check en /api/health
+🔗 DB test en /api/db-test
 ```
 
 **Si NO ves esto**, el servidor no está corriendo correctamente.
@@ -28,7 +28,7 @@ Deberías ver esto:
 
 ### 2. Verificar que el Backend responde
 
-En tu navegador, ve a: **/api/api/health**
+En tu navegador, ve a: **/api/health**
 
 Deberías ver:
 
@@ -45,7 +45,7 @@ Si ves un error estilo **"Cannot GET /api/health"** o **"Conexión rechazada"**,
 
 ### 3. Verificar la Conexión a MySQL
 
-En tu navegador, ve a: **/api/api/db-test**
+En tu navegador, ve a: **/api/db-test**
 
 Deberías ver:
 
@@ -78,7 +78,7 @@ PORT=3001
 CORS_ORIGIN=http://localhost:5173
 
 # Frontend
-VITE_API_URL=/api/api
+VITE_API_URL=/api
 ```
 
 ---
@@ -131,8 +131,8 @@ Abre DevTools y ve a **Console** para ver errores detallados.
 
 Verás logs como:
 ```
-🔌 API Base URL: /api/api
-📤 POST /api/api/students
+🔌 API Base URL: /api
+📤 POST /api/students
 ❌ Error de conexión: Failed to fetch
 ```
 
@@ -152,7 +152,7 @@ Si no ves logs, el servidor no está corriendo.
 **Causa**: Backend no está en `/api`
 **Solución**: 
 1. Abre Terminal 1 con `npm run server`
-2. Verifica /api/api/health en navegador
+2. Verifica /api/health en navegador
 3. Recarga la página
 
 ### Error: "Cannot connect to database"  
@@ -180,8 +180,8 @@ taskkill /PID <pid> /F
 Verás en la consola del navegador:
 
 ```
-🔌 API Base URL: /api/api
-📤 POST /api/api/students
+🔌 API Base URL: /api
+📤 POST /api/students
 ✅ Respuesta exitosa: { message: "Estudiante creado", id: "stu_xyz" }
 ```
 

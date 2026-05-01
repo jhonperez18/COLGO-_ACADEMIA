@@ -27,7 +27,7 @@ node backend/index.js
 
 ### 1️⃣ HEALTH CHECK
 ```
-GET /api/api/health
+GET /api/health
 
 Response:
 {
@@ -57,7 +57,7 @@ INSERT INTO usuarios (email, password_hash, rol, activo) VALUES (
 
 **Test Login:**
 ```
-POST /api/api/auth/login
+POST /api/auth/login
 Content-Type: application/json
 
 {
@@ -85,7 +85,7 @@ Response:
 ## 👤 TEST 2: CREAR ESTUDIANTE (Admin)
 
 ```
-POST /api/api/admin/estudiantes
+POST /api/admin/estudiantes
 Authorization: Bearer YOUR_ADMIN_TOKEN
 Content-Type: application/json
 
@@ -116,7 +116,7 @@ Content-Type: application/json
 ## 👨‍🏫 TEST 3: CREAR DOCENTE (Admin)
 
 ```
-POST /api/api/admin/docentes
+POST /api/admin/docentes
 Authorization: Bearer YOUR_ADMIN_TOKEN
 Content-Type: application/json
 
@@ -143,7 +143,7 @@ Content-Type: application/json
 ## 📚 TEST 4: CREAR CURSO (Admin)
 
 ```
-POST /api/api/admin/cursos
+POST /api/admin/cursos
 Authorization: Bearer YOUR_ADMIN_TOKEN
 Content-Type: application/json
 
@@ -172,7 +172,7 @@ Content-Type: application/json
 ## 📋 TEST 5: LISTAR ESTUDIANTES (Admin)
 
 ```
-GET /api/api/admin/estudiantes
+GET /api/admin/estudiantes
 Authorization: Bearer YOUR_ADMIN_TOKEN
 
 ✓ Expected Response (200):
@@ -194,7 +194,7 @@ Authorization: Bearer YOUR_ADMIN_TOKEN
 ## 📋 TEST 6: LISTAR DOCENTES (Admin)
 
 ```
-GET /api/api/admin/docentes
+GET /api/admin/docentes
 Authorization: Bearer YOUR_ADMIN_TOKEN
 
 ✓ Expected Response (200):
@@ -215,7 +215,7 @@ Authorization: Bearer YOUR_ADMIN_TOKEN
 ## 📚 TEST 7: LISTAR CURSOS (Admin)
 
 ```
-GET /api/api/admin/cursos
+GET /api/admin/cursos
 Authorization: Bearer YOUR_ADMIN_TOKEN
 
 ✓ Expected Response (200):
@@ -239,7 +239,7 @@ Authorization: Bearer YOUR_ADMIN_TOKEN
 ## ✅ TEST 8: CREAR MATRÍCULA (Admin)
 
 ```
-POST /api/api/matriculas/crear
+POST /api/matriculas/crear
 Authorization: Bearer YOUR_ADMIN_TOKEN
 Content-Type: application/json
 
@@ -264,7 +264,7 @@ Content-Type: application/json
 ## TEST 9: LISTAR MATRÍCULAS (Admin)
 
 ```
-GET /api/api/matriculas/listar
+GET /api/matriculas/listar
 Authorization: Bearer YOUR_ADMIN_TOKEN
 
 ✓ Expected Response (200):
@@ -286,7 +286,7 @@ Authorization: Bearer YOUR_ADMIN_TOKEN
 ## 👤 TEST 10: LOGIN ESTUDIANTE
 
 ```
-POST /api/api/auth/login
+POST /api/auth/login
 Content-Type: application/json
 
 {
@@ -319,7 +319,7 @@ Content-Type: application/json
 ## 👤 TEST 11: VER PERFIL ESTUDIANTE
 
 ```
-GET /api/api/student/perfil
+GET /api/student/perfil
 Authorization: Bearer YOUR_STUDENT_TOKEN
 
 ✓ Expected Response (200):
@@ -342,7 +342,7 @@ Authorization: Bearer YOUR_STUDENT_TOKEN
 ## 📚 TEST 12: VER CURSOS MATRICULADOS (Estudiante)
 
 ```
-GET /api/api/student/cursos
+GET /api/student/cursos
 Authorization: Bearer YOUR_STUDENT_TOKEN
 
 ✓ Expected Response (200):
@@ -367,7 +367,7 @@ Authorization: Bearer YOUR_STUDENT_TOKEN
 ## 👨‍🏫 TEST 13: LOGIN DOCENTE
 
 ```
-POST /api/api/auth/login
+POST /api/auth/login
 Content-Type: application/json
 
 {
@@ -395,7 +395,7 @@ Content-Type: application/json
 ## 📚 TEST 14: VER CURSOS ASIGNADOS (Docente)
 
 ```
-GET /api/api/teacher/cursos
+GET /api/teacher/cursos
 Authorization: Bearer YOUR_TEACHER_TOKEN
 
 ✓ Expected Response (200):
@@ -419,7 +419,7 @@ Authorization: Bearer YOUR_TEACHER_TOKEN
 ## 👥 TEST 15: VER ESTUDIANTES DEL CURSO (Docente)
 
 ```
-GET /api/api/teacher/cursos/1/estudiantes
+GET /api/teacher/cursos/1/estudiantes
 Authorization: Bearer YOUR_TEACHER_TOKEN
 
 ✓ Expected Response (200):
@@ -443,7 +443,7 @@ Authorization: Bearer YOUR_TEACHER_TOKEN
 ## 📊 TEST 16: REGISTRAR CALIFICACIÓN (Docente)
 
 ```
-POST /api/api/teacher/cursos/1/estudiantes/1/notas
+POST /api/teacher/cursos/1/estudiantes/1/notas
 Authorization: Bearer YOUR_TEACHER_TOKEN
 Content-Type: application/json
 

@@ -65,7 +65,7 @@ handleCreateStudent() es llamado
     ↓
 Valida datos (nombre y documento requeridos)
     ↓
-Envía POST a /api/api/students
+Envía POST a /api/students
     ↓
 Si éxito: Agrega estudiante al estado local
     ↓
@@ -152,7 +152,7 @@ DB_NAME=colgo_db
 PORT=3001
 
 # Frontend
-VITE_API_URL=/api/api
+VITE_API_URL=/api
 ```
 
 ---

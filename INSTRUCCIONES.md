@@ -116,7 +116,7 @@ Acceder a: `http://localhost:5173`
 
 ```bash
 # 1. Login
-curl -X POST /api/api/auth/login \
+curl -X POST /api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@colgo.edu",
@@ -136,7 +136,7 @@ curl -X POST /api/api/auth/login \
 }
 
 # 2. Usar token en otra llamada
-curl -X GET /api/api/admin/estadisticas \
+curl -X GET /api/admin/estadisticas \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
 ```
 
@@ -147,7 +147,7 @@ curl -X GET /api/api/admin/estadisticas \
 ### Paso 1: Admin crea Estudiante
 
 ```bash
-curl -X POST /api/api/admin/estudiantes \
+curl -X POST /api/admin/estudiantes \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -170,7 +170,7 @@ curl -X POST /api/api/admin/estudiantes \
 ### Paso 2: Admin crea Curso
 
 ```bash
-curl -X POST /api/api/admin/cursos \
+curl -X POST /api/admin/cursos \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -186,7 +186,7 @@ curl -X POST /api/api/admin/cursos \
 ### Paso 3: Admin crea Matrícula
 
 ```bash
-curl -X POST /api/api/matriculas/crear \
+curl -X POST /api/matriculas/crear \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -225,7 +225,7 @@ JWT_SECRET=tu_clave_secreta_muy_segura_aqui_colgo_2026
 JWT_EXPIRES_IN=7d
 
 # Frontend
-VITE_API_URL=/api/api
+VITE_API_URL=/api
 
 # Email (para envío de credenciales)
 SMTP_HOST=smtp.gmail.com
@@ -291,20 +291,20 @@ src/
 
 ### 1. Health Check
 ```bash
-curl /api/api/health
+curl /api/health
 # {"status":"ok","message":"Backend COLGO funcionando"}
 ```
 
 ### 2. Estadísticas (requiere token)
 ```bash
 curl -H "Authorization: Bearer TOKEN" \
-  /api/api/admin/estadisticas
+  /api/admin/estadisticas
 ```
 
 ### 3. Listar Estudiantes
 ```bash
 curl -H "Authorization: Bearer TOKEN" \
-  /api/api/admin/estudiantes
+  /api/admin/estudiantes
 ```
 
 ---
