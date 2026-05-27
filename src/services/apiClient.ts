@@ -24,7 +24,7 @@ async function apiCall<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const base = resolveApiBaseUrl()
+  const base = import.meta.env.VITE_API_URL || resolveApiBaseUrl();
   const response = await fetch(`${base}${endpoint}`, {
     ...options,
     headers,
