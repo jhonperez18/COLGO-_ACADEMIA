@@ -3,8 +3,11 @@ import { query } from '../db.js';
 import { authorizeRole } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 import { broadcastSse } from '../realtime/sseHub.js';
+import { ensureSchemaRuntime } from '../schemaRuntime.js';
 
 const router = express.Router();
+
+const MAX_FOTO_CHARS = 800000;
 
 // Middleware: solo docentes
 router.use(authorizeRole('docente'));
@@ -15,6 +18,7 @@ router.use(authorizeRole('docente'));
  */
 router.get('/perfil', async (req, res) => {
   try {
+    await ensureSchemaRuntime();
     const docentes = await query(
       'SELECT * FROM docentes WHERE usuario_id = ?',
       [req.user.id]
@@ -24,7 +28,14 @@ router.get('/perfil', async (req, res) => {
       return res.status(404).json({ error: 'Perfil de docente no encontrado' });
     }
 
-    res.json(docentes[0]);
+    const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [req.user.id]);
+    let foto_url = null;
+    if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
+      const fv = uRows[0].foto_url;
+      foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+    }
+
+    res.json({ ...docentes[0], foto_url });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Error al obtener perfil' });
@@ -46,6 +57,7 @@ router.put(
   ],
   async (req, res) => {
     try {
+      await ensureSchemaRuntime();
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -58,6 +70,16 @@ router.put(
 
       const docenteId = Number(docentes[0].id);
       const data = req.body || {};
+
+      if (Object.prototype.hasOwnProperty.call(data, 'foto_url')) {
+        const raw = data.foto_url == null || data.foto_url === '' ? null : String(data.foto_url);
+        if (raw && raw.length > MAX_FOTO_CHARS) {
+          return res.status(400).json({
+            error: 'La foto es demasiado grande. Usa una imagen más pequeña (por ejemplo menos de 1,5 MB).',
+          });
+        }
+        await query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [raw, req.user.id]);
+      }
 
       await query(
         `UPDATE docentes
@@ -78,10 +100,17 @@ router.put(
       );
 
       const actualizado = await query('SELECT * FROM docentes WHERE id = ? LIMIT 1', [docenteId]);
+      const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [req.user.id]);
+      let foto_url = null;
+      if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
+        const fv = uRows[0].foto_url;
+        foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+      }
+      const row = Array.isArray(actualizado) && actualizado[0] ? actualizado[0] : null;
       return res.json({
         success: true,
         message: 'Perfil actualizado correctamente',
-        perfil: Array.isArray(actualizado) && actualizado[0] ? actualizado[0] : null,
+        perfil: row ? { ...row, foto_url } : null,
       });
     } catch (error) {
       console.error('Error:', error);

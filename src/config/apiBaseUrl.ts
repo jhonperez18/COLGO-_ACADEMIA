@@ -27,13 +27,15 @@ export function resolveApiBaseUrl(): string {
     const isLocal = host === 'localhost' || host === '127.0.0.1'
     
     if (isLocal) {
-      // `/api` solo en el origen de Vite (5174) no existe: hay que ir al Express (3001) o usar proxy.
-      const usable =
-        fromEnv !== '' &&
-        fromEnv !== '/api' &&
-        /^https?:\/\//i.test(fromEnv)
-      if (usable) return fromEnv.replace(/\/$/, '')
-      return 'http://localhost:3001/api'
+      // Ruta relativa (p. ej. `/api`): mismo origen que Vite → `server.proxy` reenvía a Express (3001).
+      if (fromEnv !== '' && fromEnv.startsWith('/')) {
+        return fromEnv.replace(/\/$/, '')
+      }
+      if (fromEnv !== '' && /^https?:\/\//i.test(fromEnv)) {
+        return fromEnv.replace(/\/$/, '')
+      }
+      // Sin variable (o no reconocida): proxy de Vite en `vite.config.ts`
+      return '/api'
     }
   }
 

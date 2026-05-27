@@ -191,6 +191,8 @@ export default function AdminMiembroPanelPage() {
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [guardandoPerfil, setGuardandoPerfil] = useState(false)
   const [errorPerfil, setErrorPerfil] = useState<string | null>(null)
+  /** Misma foto que el usuario cargó en panel estudiante/docente (`usuarios.foto_url`). */
+  const [fotoPerfil, setFotoPerfil] = useState('')
 
   const [cursosAsignables, setCursosAsignables] = useState<
     Array<{ id: number; nombre: string; codigo?: string; docente?: string | null }>
@@ -305,6 +307,10 @@ export default function AdminMiembroPanelPage() {
           especialidad: String(d.especialidad || ''),
           tipoDocumento: String(d.tipo_documento || ''),
         })
+        {
+          const raw = (detalle as Record<string, unknown>)['foto_url']
+          setFotoPerfil(typeof raw === 'string' && raw.length > 0 ? raw : '')
+        }
         if (u.rol === 'staff' && viewerRol === 'admin') {
           const permisos = await getUsuarioPermisosAdmin(u.id)
           setFormPermisos(permisos)
@@ -329,6 +335,7 @@ export default function AdminMiembroPanelPage() {
           especialidad: '',
           tipoDocumento: '',
         })
+        setFotoPerfil('')
       } finally {
         setCargandoDetalle(false)
       }
@@ -753,6 +760,24 @@ export default function AdminMiembroPanelPage() {
               <div className={backofficeBottomAccentClass} aria-hidden />
               <div className={cn(backofficeTopHeaderPadClass, 'min-h-0 pt-3 pb-[1cm] grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-3')}>
                 <div className="min-w-0 space-y-3 sm:space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    {fotoPerfil ? (
+                      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/25 bg-white/10 shadow-md ring-1 ring-white/10 sm:h-[4.5rem] sm:w-[4.5rem]">
+                        <img
+                          src={fotoPerfil}
+                          alt=""
+                          className="block h-full w-full object-cover object-center"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-white/25 bg-white/10 shadow-md ring-1 ring-white/10 sm:h-[4.5rem] sm:w-[4.5rem]"
+                        aria-hidden
+                      >
+                        <UserCircle2 className="h-9 w-9 text-white/85 sm:h-10 sm:w-10" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 space-y-3">
                   <p className="truncate text-base font-semibold tracking-tight text-white lg:text-lg">{u.nombre_completo || u.email}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-xs font-medium text-white/95 backdrop-blur-sm">
@@ -775,6 +800,8 @@ export default function AdminMiembroPanelPage() {
                       {u.email}
                     </span>
                   </p>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-1 border-t border-white/10 pt-1.5 sm:border-t-0 sm:pt-0 lg:flex-col lg:items-stretch lg:border-t-0 lg:pt-0">
                   <Button

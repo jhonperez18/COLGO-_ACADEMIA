@@ -15,6 +15,7 @@ import { errorHandler, notFoundHandler, requestLogger } from './middleware/error
 import { logSmtpStatus } from './utils/emailService.js';
 import jwt from 'jsonwebtoken';
 import { addSseClient, removeSseClient, startSseHeartbeat } from './realtime/sseHub.js';
+import { ensureSchemaRuntime } from './schemaRuntime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -59,7 +60,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 
 startSseHeartbeat();
 
@@ -128,10 +129,18 @@ app.use(notFoundHandler);
 // Manejo de errores global
 app.use(errorHandler);
 
-app.listen(port, () => {
-  console.log(`✓ Backend COLGO corriendo en puerto ${port}`);
-  console.log(`✓ Entorno: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`✓ BD: ${process.env.DB_NAME} en ${process.env.DB_HOST}`);
-  logSmtpStatus();
+async function start() {
+  await ensureSchemaRuntime();
+  app.listen(port, () => {
+    console.log(`✓ Backend COLGO corriendo en puerto ${port}`);
+    console.log(`✓ Entorno: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`✓ BD: ${process.env.DB_NAME} en ${process.env.DB_HOST}`);
+    logSmtpStatus();
+  });
+}
+
+start().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });
 

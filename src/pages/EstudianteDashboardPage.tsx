@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card } from '../components/common/Card'
 import { Button } from '../components/common/Button'
 import { Toast } from '../components/common/Toast'
@@ -15,11 +15,13 @@ import {
   subscribeRealtime,
 } from '../services/apiClient'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { Camera, UserCircle2 } from 'lucide-react'
 import { withOptimisticUpdate } from '../utils/optimistic'
 import { PAIS_COLOMBIA, PAISES_OPCIONES } from '../data/paisesLista'
 import { useColombiaMunicipios } from '../hooks/useColombiaMunicipios'
 import { backofficePanelCardClass } from '../components/layout/backofficeVisual'
 import { cn } from '../utils/cn'
+import { buildProfilePhotoDataUrl } from '../utils/profilePhotoDataUrl'
 
 type StudentCourse = {
   id: number
@@ -84,6 +86,8 @@ export function EstudianteDashboardPage() {
     fecha_nacimiento: '',
     estado_civil: '',
   })
+  const [fotoPerfil, setFotoPerfil] = useState('')
+  const fotoInputRef = useRef<HTMLInputElement | null>(null)
   const { departamentos: colombiaDeptos, geoError: colombiaGeoError } = useColombiaMunicipios()
 
   useEffect(() => {
@@ -111,6 +115,11 @@ export function EstudianteDashboardPage() {
           fecha_nacimiento: String((perfil as Record<string, unknown>)?.fecha_nacimiento || '').slice(0, 10),
           estado_civil: String((perfil as Record<string, unknown>)?.estado_civil || ''),
         })
+        setFotoPerfil(
+          typeof (perfil as Record<string, unknown>)?.foto_url === 'string'
+            ? String((perfil as Record<string, unknown>).foto_url)
+            : '',
+        )
         const cursosNormalizados = Array.isArray(cursosApi) ? (cursosApi as StudentCourse[]) : []
         setCursos(cursosNormalizados)
         setNCursos(cursosNormalizados.length)
@@ -215,6 +224,7 @@ export function EstudianteDashboardPage() {
         ciudad: perfilForm.ciudad.trim(),
         fecha_nacimiento: perfilForm.fecha_nacimiento || null,
         estado_civil: perfilForm.estado_civil.trim(),
+        foto_url: fotoPerfil || null,
       })
       setProfileOk('Perfil actualizado correctamente.')
       setSaludo(`Hola, ${perfilForm.nombre.trim()}`)
@@ -449,9 +459,75 @@ export function EstudianteDashboardPage() {
         <div className="space-y-4">
           <Card>
             <p className="text-base font-semibold text-[var(--text)]">Perfil y datos</p>
-            <p className="mt-1 text-sm text-[var(--muted)]">Completa tus datos personales. Esta información también se verá en el panel administrativo.</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Completa tus datos personales. La misma información y la foto de perfil se sincronizan con la ficha del administrador (solo lectura allí; credenciales y acceso no se alteran).
+            </p>
             {profileError ? <p className="mt-3 text-sm text-red-700">{profileError}</p> : null}
             {profileOk ? <p className="mt-3 text-sm text-green-700">{profileOk}</p> : null}
+            <div className="mt-4 flex flex-col gap-3 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="mx-auto flex shrink-0 justify-center sm:mx-0">
+                {fotoPerfil ? (
+                  <div className="relative h-20 w-20 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--panel-2)]">
+                    <img
+                      src={fotoPerfil}
+                      alt=""
+                      className="block h-full w-full object-cover object-center"
+                    />
+                  </div>
+                ) : (
+                  <div className="grid h-20 w-20 place-items-center rounded-full border border-[var(--border)] bg-[var(--panel-2)]">
+                    <UserCircle2 className="h-10 w-10 text-[var(--muted)]" aria-hidden />
+                  </div>
+                )}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  leftIcon={<Camera size={14} />}
+                  onClick={() => fotoInputRef.current?.click()}
+                >
+                  Elegir foto
+                </Button>
+                {fotoPerfil ? (
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setFotoPerfil('')}>
+                    Quitar foto
+                  </Button>
+                ) : null}
+                <input
+                  ref={fotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!f) return
+                    if (!f.type.startsWith('image/')) {
+                      setProfileError('El archivo debe ser una imagen.')
+                      return
+                    }
+                    if (f.size > 8 * 1024 * 1024) {
+                      setProfileError('El archivo supera 8 MB. Elige una imagen más pequeña.')
+                      return
+                    }
+                    setProfileError(null)
+                    void (async () => {
+                      try {
+                        const dataUrl = await buildProfilePhotoDataUrl(f)
+                        setFotoPerfil(dataUrl)
+                      } catch (err) {
+                        setProfileError(err instanceof Error ? err.message : 'No se pudo procesar la imagen.')
+                      }
+                    })()
+                  }}
+                />
+              </div>
+              <p className="text-xs text-[var(--muted)] sm:max-w-xs">
+                JPG, PNG, WebP. Se optimiza al guardar (menor tamaño, misma foto en administración).
+              </p>
+            </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <input
                 value={perfilForm.nombre}

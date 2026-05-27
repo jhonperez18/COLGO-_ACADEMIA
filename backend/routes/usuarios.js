@@ -1,6 +1,7 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import { query } from '../db.js'
+import { ensureSchemaRuntime } from '../schemaRuntime.js'
 import { sendAdminPasswordResetEmail, sendColgoUsuarioInvitacion } from '../utils/emailService.js'
 import { generateSecurePassword } from '../utils/passwordGenerator.js'
 
@@ -307,6 +308,7 @@ async function ensureSupportTables() {
   await ensureUltimoAccesoColumn()
   await ensureEstudiantesUbicacionColumns()
   await ensureDocentesExtraColumns()
+  await ensureSchemaRuntime()
 }
 
 async function logActividad({ actorId = null, actorRol = null, objetivoId = null, accion, detalle = null, ip = null }) {
@@ -754,7 +756,7 @@ router.get('/:id/detalle', async (req, res) => {
     if (!(await requireStaffPermission(req, res, 'gestionar_usuarios'))) return
     await ensureSupportTables()
     const baseRows = await query(
-      `SELECT u.id, u.email, u.rol, u.activo,
+      `SELECT u.id, u.email, u.rol, u.activo, u.foto_url,
               COALESCE(e.nombre, d.nombre, sp.nombre, ap.nombre, '') AS nombres,
               COALESCE(e.apellido, d.apellido, sp.apellido, ap.apellido, '') AS apellidos,
               COALESCE(e.documento, d.documento, sp.documento, ap.documento, '') AS cedula
@@ -768,7 +770,13 @@ router.get('/:id/detalle', async (req, res) => {
       [id],
     )
     if (!Array.isArray(baseRows) || baseRows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' })
-    const base = baseRows[0]
+    const base = { ...baseRows[0] }
+    if (Object.prototype.hasOwnProperty.call(base, 'foto_url')) {
+      const fv = base.foto_url
+      if (fv == null || fv === '') base.foto_url = null
+      else if (Buffer.isBuffer(fv)) base.foto_url = fv.toString('utf8')
+      else base.foto_url = String(fv)
+    }
     let perfil = {}
     if (String(base.rol) === 'estudiante') {
       perfil = await selectEstudiantePerfilCampos(id)

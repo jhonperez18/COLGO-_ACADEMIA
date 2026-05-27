@@ -457,7 +457,7 @@ export function Header({
                   <img
                     src={profile.avatarDataUrl}
                     alt=""
-                    className="h-full w-full object-cover object-center"
+                    className="block h-full w-full object-cover object-center"
                   />
                 ) : (
                   <UserCircle2
@@ -482,13 +482,19 @@ export function Header({
           <section className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
             <p className="text-sm font-semibold text-[var(--text)]">Perfil de usuario</p>
             <div className="flex items-center gap-3">
-              {profile.avatarDataUrl ? (
-                <img src={profile.avatarDataUrl} alt="avatar perfil" className="h-14 w-14 rounded-full object-cover" />
-              ) : (
-                <div className="grid h-14 w-14 place-items-center rounded-full border border-[var(--border)] bg-white">
-                  <UserCircle2 size={28} />
-                </div>
-              )}
+                {profile.avatarDataUrl ? (
+                  <div className="relative h-14 w-14 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--panel-2)]">
+                    <img
+                      src={profile.avatarDataUrl}
+                      alt="avatar perfil"
+                      className="block h-full w-full object-cover object-center"
+                    />
+                  </div>
+                ) : (
+                  <div className="grid h-14 w-14 place-items-center rounded-full border border-[var(--border)] bg-white">
+                    <UserCircle2 size={28} />
+                  </div>
+                )}
               <Button size="sm" variant="secondary" leftIcon={<Camera size={14} />} onClick={() => fileInputRef.current?.click()}>
                 Cambiar foto
               </Button>

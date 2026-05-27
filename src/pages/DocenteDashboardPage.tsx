@@ -11,11 +11,12 @@ import {
   subscribeRealtime,
   updateTeacherPerfil,
 } from '../services/apiClient'
-import { BookOpen, ChevronDown, FolderOpen } from 'lucide-react'
+import { BookOpen, Camera, ChevronDown, FolderOpen, UserCircle2 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { withOptimisticUpdate } from '../utils/optimistic'
 import { backofficePanelCardClass } from '../components/layout/backofficeVisual'
 import { cn } from '../utils/cn'
+import { buildProfilePhotoDataUrl } from '../utils/profilePhotoDataUrl'
 
 type TeacherCourse = {
   id: number
@@ -62,6 +63,8 @@ export function DocenteDashboardPage() {
     telefono: '',
     especialidad: '',
   })
+  const [fotoPerfil, setFotoPerfil] = useState('')
+  const fotoInputRef = useRef<HTMLInputElement | null>(null)
   const [clasesRecientes, setClasesRecientes] = useState<
     Array<{ id: string; cursoId: number; titulo: string; fecha: string; hora_inicio: string; tipo: 'virtual' | 'presencial' }>
   >([])
@@ -93,6 +96,7 @@ export function DocenteDashboardPage() {
           telefono: String(perfil?.telefono || ''),
           especialidad: String(perfil?.especialidad || ''),
         })
+        setFotoPerfil(typeof perfil.foto_url === 'string' ? perfil.foto_url : '')
         const cursosNormalizados = Array.isArray(cursosApi) ? (cursosApi as TeacherCourse[]) : []
         setCursos(cursosNormalizados)
         setNCursos(cursosNormalizados.length)
@@ -190,6 +194,7 @@ export function DocenteDashboardPage() {
         documento: perfilForm.documento.trim(),
         telefono: perfilForm.telefono.trim(),
         especialidad: perfilForm.especialidad.trim(),
+        foto_url: fotoPerfil || null,
       })
       setSaludo(`Hola, ${perfilForm.nombre.trim()}`)
       setProfileOk('Perfil actualizado correctamente.')
@@ -631,9 +636,73 @@ export function DocenteDashboardPage() {
       {seccion === 'perfil' ? (
         <Card>
           <p className="text-base font-semibold text-[var(--text)]">Perfil y datos</p>
-          <p className="mt-1 text-sm text-[var(--muted)]">Actualiza tus datos personales del perfil docente.</p>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Actualiza tus datos personales. La foto y los datos coinciden con la ficha que ve administración (solo lectura en ese panel).
+          </p>
           {profileError ? <p className="mt-3 text-sm text-red-700">{profileError}</p> : null}
           {profileOk ? <p className="mt-3 text-sm text-green-700">{profileOk}</p> : null}
+          <div className="mt-4 flex flex-col gap-3 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:gap-4">
+            <div className="mx-auto flex shrink-0 justify-center sm:mx-0">
+              {fotoPerfil ? (
+                <div className="relative h-20 w-20 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--panel-2)]">
+                  <img
+                    src={fotoPerfil}
+                    alt=""
+                    className="block h-full w-full object-cover object-center"
+                  />
+                </div>
+              ) : (
+                <div className="grid h-20 w-20 place-items-center rounded-full border border-[var(--border)] bg-[var(--panel-2)]">
+                  <UserCircle2 className="h-10 w-10 text-[var(--muted)]" aria-hidden />
+                </div>
+              )}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                leftIcon={<Camera size={14} />}
+                onClick={() => fotoInputRef.current?.click()}
+              >
+                Elegir foto
+              </Button>
+              {fotoPerfil ? (
+                <Button type="button" size="sm" variant="secondary" onClick={() => setFotoPerfil('')}>
+                  Quitar foto
+                </Button>
+              ) : null}
+              <input
+                ref={fotoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!f) return
+                  if (!f.type.startsWith('image/')) {
+                    setProfileError('El archivo debe ser una imagen.')
+                    return
+                  }
+                  if (f.size > 8 * 1024 * 1024) {
+                    setProfileError('El archivo supera 8 MB. Elige una imagen más pequeña.')
+                    return
+                  }
+                  setProfileError(null)
+                  void (async () => {
+                    try {
+                      const dataUrl = await buildProfilePhotoDataUrl(f)
+                      setFotoPerfil(dataUrl)
+                    } catch (err) {
+                      setProfileError(err instanceof Error ? err.message : 'No se pudo procesar la imagen.')
+                    }
+                  })()
+                }}
+              />
+            </div>
+            <p className="text-xs text-[var(--muted)] sm:max-w-xs">JPG, PNG. Se optimiza al guardar para que el admin vea la misma foto.</p>
+          </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <input
               value={perfilForm.nombre}

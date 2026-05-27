@@ -303,6 +303,8 @@ export type UsuarioDetalleAdmin = {
   email: string;
   rol: RolApi;
   activo: boolean;
+  /** Foto de perfil (data URL o URL corta); mismo valor que guardan estudiante/docente en su panel */
+  foto_url?: string | null;
   nombres?: string;
   apellidos?: string;
   cedula?: string;
