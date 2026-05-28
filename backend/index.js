@@ -62,6 +62,14 @@ app.use(
 );
 app.use(express.json({ limit: '3mb' }));
 
+// En Vercel, las peticiones pueden llegar con prefijo /_backend/api.
+app.use((req, _res, next) => {
+  if (typeof req.url === 'string' && req.url.startsWith('/_backend/api')) {
+    req.url = req.url.replace('/_backend/api', '/api');
+  }
+  next();
+});
+
 startSseHeartbeat();
 
 // Rutas públicas
