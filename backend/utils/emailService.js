@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import dotenv from 'dotenv'
+import { PRODUCTION_ORIGIN } from '../config/productionUrl.js'
 
 dotenv.config()
 
@@ -164,10 +165,9 @@ function withForcedLoginQuery(loginUrl) {
 
 /**
  * Producción por defecto en enlaces de correo si no hay FRONTEND_URL en el servidor.
- * Debe coincidir con el dominio .vercel.app real (Vercel usa "project-", no "proyecto-").
- * En producción define siempre FRONTEND_URL en .env del backend.
+ * Debe coincidir con `src/config/production.ts`. En Vercel define FRONTEND_URL.
  */
-const DEFAULT_EMAIL_PUBLIC_APP_URL = 'https://project-bm9ko.vercel.app'
+const DEFAULT_EMAIL_PUBLIC_APP_URL = PRODUCTION_ORIGIN
 
 function resolveEmailPublicAppBase() {
   const fromEnv = String(process.env.FRONTEND_URL || '').trim().replace(/\/$/, '')

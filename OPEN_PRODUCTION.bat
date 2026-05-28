@@ -1,6 +1,5 @@
 @echo off
-REM Abre la URL de produccion actual (deploy conectado a GitHub).
-REM NO uses colgo-academia.vercel.app: es un dominio viejo sin API.
-start "" "chrome" "https://project-bm9ko.vercel.app/login"
-echo Produccion: https://project-bm9ko.vercel.app/login
+REM URL unica de produccion (ver DOMINIO_UNICO_VERCEL.md si aun no renombraste en Vercel).
+start "" "chrome" "https://colgo-academia.vercel.app/login"
+echo Produccion: https://colgo-academia.vercel.app/login
 echo Login: MARIO / 123
