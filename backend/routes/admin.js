@@ -461,12 +461,14 @@ router.get('/cursos', async (req, res) => {
       dCols.size > 0
         ? `TRIM(CONCAT(${colExpr('d', dCols, ['nombre', 'nombres', 'first_name'], "''")}, ' ', ${colExpr('d', dCols, ['apellido', 'apellidos', 'last_name'], "''")}))`
         : "''";
-    const matriculaJoin =
-      mCols.size > 0 && matriculaCursoFk
-        ? `LEFT JOIN matriculas m ON m.${matriculaCursoFk} = c.id ${hasEstadoMatricula && estadoCol ? `AND LOWER(m.${estadoCol}) IN ('activa','active')` : ''}`
-        : '';
+    const inscritosExpr =
+      mCols.size > 0 && matriculaCursoFk && matriculaIdCol
+        ? `(SELECT COUNT(mm.${matriculaIdCol})
+            FROM matriculas mm
+           WHERE mm.${matriculaCursoFk} = c.id
+             ${hasEstadoMatricula && estadoCol ? `AND LOWER(mm.${estadoCol}) IN ('activa','active')` : ''})`
+        : '0';
     const programaNombreExpr = pCols.size > 0 ? colExpr('p', pCols, ['nombre', 'name'], 'NULL') : 'NULL';
-    const countExpr = mCols.size > 0 && matriculaIdCol ? `COUNT(m.${matriculaIdCol})` : '0';
 
     const cursos = await query(`
       SELECT c.id,
@@ -480,12 +482,10 @@ router.get('/cursos', async (req, res) => {
              ${hasProgramaId ? 'c.programa_id' : 'NULL AS programa_id'},
              ${programaNombreExpr} AS programa,
              ${docenteNombreExpr} AS docente,
-             ${countExpr} AS estudiantes_inscritos
+             ${inscritosExpr} AS estudiantes_inscritos
       FROM cursos c
       ${programaJoin}
       ${docenteJoin}
-      ${matriculaJoin}
-      GROUP BY c.id
       ORDER BY ${cursoCodigoExpr !== 'NULL' ? cursoCodigoExpr : cursoNombreExpr}
     `);
     res.json(cursos);
