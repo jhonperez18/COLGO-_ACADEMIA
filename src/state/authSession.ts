@@ -8,6 +8,8 @@ export type SessionUser = {
 const TOKEN_KEY = 'token'
 const USER_KEY = 'usuario'
 const SESSION_ACTIVE_KEY = 'colgo_auth_active'
+const SESSION_VERIFIED_KEY = 'colgo_auth_verified'
+const FOTO_PREFIX = 'colgo_foto_'
 let tokenCache: string | null = null
 let userCache: SessionUser | null | undefined = undefined
 
@@ -30,6 +32,43 @@ function markSessionActive(): void {
 function clearSessionActive(): void {
   try {
     sessionStorage.removeItem(SESSION_ACTIVE_KEY)
+    sessionStorage.removeItem(SESSION_VERIFIED_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isSessionVerified(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_VERIFIED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function markSessionVerified(): void {
+  try {
+    sessionStorage.setItem(SESSION_VERIFIED_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadStoredProfilePhoto(userId: number | string | undefined): string {
+  if (userId == null || userId === '') return ''
+  try {
+    return localStorage.getItem(`${FOTO_PREFIX}${userId}`) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function storeProfilePhoto(userId: number | string | undefined, foto: string | null): void {
+  if (userId == null || userId === '') return
+  try {
+    const key = `${FOTO_PREFIX}${userId}`
+    if (foto) localStorage.setItem(key, foto)
+    else localStorage.removeItem(key)
   } catch {
     /* ignore */
   }
@@ -105,11 +144,19 @@ export function getDashboardPathByRole(rol: UserRole): string {
 }
 
 export function persistSession(token: string, usuario: SessionUser): void {
+  const userId = (usuario as Record<string, unknown>).id
+  const foto =
+    typeof usuario.foto_url === 'string' && usuario.foto_url ? String(usuario.foto_url) : null
+  const usuarioGuardado = { ...usuario }
+  delete (usuarioGuardado as Record<string, unknown>).foto_url
+
   tokenCache = token
-  userCache = usuario
+  userCache = usuarioGuardado
   localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(USER_KEY, JSON.stringify(usuario))
+  localStorage.setItem(USER_KEY, JSON.stringify(usuarioGuardado))
+  storeProfilePhoto(userId as number | string | undefined, foto)
   markSessionActive()
+  markSessionVerified()
 }
 
 export function clearSession(): void {

@@ -2,6 +2,7 @@ import { useState, type FormEvent, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/common/Button'
 import { resolveApiBaseUrl } from '../config/apiBaseUrl'
+import { normalizeApiBase } from '../config/normalizeApiBase'
 import { login } from '../services/apiClient'
 import {
   clearSession,
@@ -44,6 +45,12 @@ export function LoginPage() {
   }
 
   const forceLogin = new URLSearchParams(location.search).get('force_login') === '1'
+
+  // Despertar el servidor (Render) mientras el usuario escribe credenciales
+  useEffect(() => {
+    const base = normalizeApiBase(import.meta.env.VITE_API_URL)
+    void fetch(`${base}/health`, { method: 'GET' }).catch(() => {})
+  }, [])
 
   // Solo redirige al panel si ya inició sesión en esta pestaña; ?force_login=1 siempre pide credenciales.
   useEffect(() => {

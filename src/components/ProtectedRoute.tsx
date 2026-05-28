@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { getAuthMe } from '../services/apiClient'
+import { ensureServerSession } from '../services/authVerify'
 import {
-  clearSession,
   getDashboardPathByRole,
   hasValidLocalSession,
+  isSessionVerified,
   loadSessionUser,
-  type SessionUser,
   type UserRole,
 } from '../state/authSession'
 
@@ -17,53 +16,22 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, rol }: ProtectedRouteProps) {
   const location = useLocation()
-  const [usuario, setUsuario] = useState<SessionUser | null>(null)
-  const [estado, setEstado] = useState<'comprobando' | 'autorizado' | 'denegado'>('comprobando')
+  const usuario = hasValidLocalSession() ? loadSessionUser() : null
+  const [denegado, setDenegado] = useState(false)
 
   useEffect(() => {
+    if (!usuario) return
+    if (isSessionVerified()) return
     let cancelado = false
-
-    async function validar() {
-      if (!hasValidLocalSession()) {
-        clearSession()
-        if (!cancelado) setEstado('denegado')
-        return
-      }
-
-      const localUser = loadSessionUser()
-      if (!localUser) {
-        clearSession()
-        if (!cancelado) setEstado('denegado')
-        return
-      }
-
-      try {
-        await getAuthMe()
-        if (!cancelado) {
-          setUsuario(localUser)
-          setEstado('autorizado')
-        }
-      } catch {
-        clearSession()
-        if (!cancelado) setEstado('denegado')
-      }
-    }
-
-    void validar()
+    void ensureServerSession().then((ok) => {
+      if (!cancelado && !ok) setDenegado(true)
+    })
     return () => {
       cancelado = true
     }
-  }, [])
+  }, [usuario?.id])
 
-  if (estado === 'comprobando') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
-        <p className="text-[var(--muted)]">Verificando sesión…</p>
-      </div>
-    )
-  }
-
-  if (estado === 'denegado' || !usuario) {
+  if (!usuario || denegado) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 

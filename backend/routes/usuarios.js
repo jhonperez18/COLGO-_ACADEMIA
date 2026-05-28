@@ -717,7 +717,8 @@ export async function handleMePerfilGet(req, res) {
     const meId = Number(req.user?.id || 0)
     if (!meId) return res.status(401).json({ error: 'Sesión inválida' })
     const base = await getPersonaPorUsuarioId(meId)
-    const foto_url = await readFotoUrlForUsuario(meId)
+    const includeFoto = String(req.query.foto || '') === '1'
+    const foto_url = includeFoto ? await readFotoUrlForUsuario(meId) : undefined
     if (rol === 'admin') {
       const perfil = await selectAdminPerfilCampos(meId)
       return res.json({
@@ -729,7 +730,7 @@ export async function handleMePerfilGet(req, res) {
         documento: String((perfil && perfil.documento) || ''),
         telefono: String((perfil && perfil.telefono) || ''),
         cargo: String((perfil && perfil.cargo) || ''),
-        foto_url,
+        ...(includeFoto ? { foto_url } : {}),
       })
     }
     const perfil = await selectStaffPerfilCampos(meId)
@@ -742,7 +743,7 @@ export async function handleMePerfilGet(req, res) {
       documento: String((perfil && perfil.documento) || ''),
       telefono: String((perfil && perfil.telefono) || ''),
       area: String((perfil && perfil.area) || ''),
-      foto_url,
+      ...(includeFoto ? { foto_url } : {}),
     })
   } catch (err) {
     console.error(err)

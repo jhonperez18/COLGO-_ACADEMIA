@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { formatDate } from '../../services/mockData'
-import { getSessionToken, loadSessionUser, persistSession } from '../../state/authSession'
+import { getSessionToken, loadSessionUser, loadStoredProfilePhoto, persistSession, storeProfilePhoto } from '../../state/authSession'
 import { Modal } from '../common/Modal'
 import { Button } from '../common/Button'
 import { changePassword, getUsuariosMePerfil, updateUsuariosMePerfil } from '../../services/apiClient'
@@ -135,17 +135,17 @@ export function Header({
   }, [profile.displayName, sessionUser])
 
   useEffect(() => {
-    let cancelled = false
     const userId = String(sessionUser?.id ?? 'anon')
     const profileRaw = localStorage.getItem(`profile_settings_${userId}`)
     const uiRaw = localStorage.getItem(`ui_settings_${userId}`)
+    const fotoLocal = loadStoredProfilePhoto(sessionUser?.id as number | string | undefined)
 
     let nextProfile: UserProfileSettings = {
       displayName: String(sessionUser?.nombre_panel ?? ''),
       phone: '',
       city: '',
       bio: '',
-      avatarDataUrl: typeof sessionUser?.foto_url === 'string' ? sessionUser.foto_url : '',
+      avatarDataUrl: fotoLocal,
     }
 
     if (profileRaw) {
@@ -156,12 +156,14 @@ export function Header({
           phone: parsed.phone ?? '',
           city: parsed.city ?? '',
           bio: parsed.bio ?? '',
-          avatarDataUrl: parsed.avatarDataUrl ?? nextProfile.avatarDataUrl,
+          avatarDataUrl: parsed.avatarDataUrl || fotoLocal,
         }
       } catch {
         // Ignorar preferencias corruptas
       }
     }
+
+    setProfile(nextProfile)
 
     if (uiRaw) {
       try {
@@ -176,25 +178,28 @@ export function Header({
         // Ignorar preferencias corruptas
       }
     }
+  }, [sessionUser?.id, sessionUser?.nombre_panel, sessionUser?.rol])
 
+  useEffect(() => {
+    if (!profileOpen || (sessionUser?.rol !== 'admin' && sessionUser?.rol !== 'staff')) return
+    let cancelled = false
     void (async () => {
-      const rol = sessionUser?.rol
-      if (rol === 'admin' || rol === 'staff') {
-        try {
-          const data = (await getUsuariosMePerfil()) as Record<string, unknown>
-          const foto = typeof data.foto_url === 'string' ? data.foto_url : ''
-          if (foto) nextProfile.avatarDataUrl = foto
-        } catch {
-          /* preferir caché local si la API falla */
+      try {
+        const data = (await getUsuariosMePerfil({ includeFoto: true })) as Record<string, unknown>
+        if (cancelled) return
+        const foto = typeof data.foto_url === 'string' ? data.foto_url : ''
+        if (foto) {
+          setProfile((prev) => ({ ...prev, avatarDataUrl: foto }))
+          storeProfilePhoto(sessionUser?.id as number | string | undefined, foto)
         }
+      } catch {
+        /* usar caché local */
       }
-      if (!cancelled) setProfile(nextProfile)
     })()
-
     return () => {
       cancelled = true
     }
-  }, [sessionUser?.id, sessionUser?.nombre_panel, sessionUser?.rol, sessionUser?.foto_url])
+  }, [profileOpen, sessionUser?.id, sessionUser?.rol])
 
   useEffect(() => {
     if (!profileOpen || sessionUser?.rol !== 'admin') return
@@ -265,8 +270,8 @@ export function Header({
         persistSession(getSessionToken() || '', {
           ...sessionUser,
           nombre_panel: profile.displayName || sessionUser.nombre_panel,
-          foto_url: profile.avatarDataUrl || null,
         })
+        storeProfilePhoto(sessionUser.id as number | string | undefined, profile.avatarDataUrl || null)
       }
       setProfileFeedback('Perfil y personalización guardados.')
       setProfileOpen(false)
@@ -297,8 +302,9 @@ export function Header({
             avatarDataUrl: dataUrl,
           }
           localStorage.setItem(`profile_settings_${userId}`, JSON.stringify(cached))
+          storeProfilePhoto(sessionUser.id as number | string | undefined, dataUrl)
           if (sessionUser) {
-            persistSession(getSessionToken() || '', { ...sessionUser, foto_url: dataUrl })
+            persistSession(getSessionToken() || '', { ...sessionUser })
           }
           setProfileFeedback('Foto guardada en el sistema.')
         }

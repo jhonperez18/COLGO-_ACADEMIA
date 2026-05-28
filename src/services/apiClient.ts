@@ -142,8 +142,9 @@ export async function getTeacherReporte(cursoId: number) {
 }
 
 /** Perfil propio en servidor (rol `staff` o `admin`): `GET /api/auth/me/perfil` */
-export async function getUsuariosMePerfil() {
-  return apiCall('/auth/me/perfil');
+export async function getUsuariosMePerfil(opts?: { includeFoto?: boolean }) {
+  const q = opts?.includeFoto ? '?foto=1' : '';
+  return apiCall(`/auth/me/perfil${q}`);
 }
 
 export async function updateUsuariosMePerfil(data: Record<string, unknown>) {
