@@ -449,18 +449,14 @@ router.get('/cursos', async (req, res) => {
     const matriculaIdCol = firstExisting(mCols, ['id']);
     const hasEstadoMatricula = hasCol(mCols, 'estado') || hasCol(mCols, 'status');
     const estadoCol = hasCol(mCols, 'estado') ? 'estado' : hasCol(mCols, 'status') ? 'status' : null;
-    const programaJoin =
-      hasProgramaId && pCols.size > 0
-        ? 'LEFT JOIN programas p ON p.id = c.programa_id'
-        : '';
-    const docenteJoin =
-      hasDocenteId && dCols.size > 0 && cursoDocenteFk
-        ? `LEFT JOIN docentes d ON c.${cursoDocenteFk} = d.id`
-        : '';
+    const canJoinProgramas = hasProgramaId && pCols.size > 0;
+    const canJoinDocentes = hasDocenteId && dCols.size > 0 && Boolean(cursoDocenteFk);
+    const programaJoin = canJoinProgramas ? 'LEFT JOIN programas p ON p.id = c.programa_id' : '';
+    const docenteJoin = canJoinDocentes ? `LEFT JOIN docentes d ON c.${cursoDocenteFk} = d.id` : '';
     const docenteNombreExpr =
-      dCols.size > 0
+      canJoinDocentes
         ? `TRIM(CONCAT(${colExpr('d', dCols, ['nombre', 'nombres', 'first_name'], "''")}, ' ', ${colExpr('d', dCols, ['apellido', 'apellidos', 'last_name'], "''")}))`
-        : "''";
+        : 'NULL';
     const inscritosExpr =
       mCols.size > 0 && matriculaCursoFk && matriculaIdCol
         ? `(SELECT COUNT(mm.${matriculaIdCol})
@@ -468,7 +464,7 @@ router.get('/cursos', async (req, res) => {
            WHERE mm.${matriculaCursoFk} = c.id
              ${hasEstadoMatricula && estadoCol ? `AND LOWER(mm.${estadoCol}) IN ('activa','active')` : ''})`
         : '0';
-    const programaNombreExpr = pCols.size > 0 ? colExpr('p', pCols, ['nombre', 'name'], 'NULL') : 'NULL';
+    const programaNombreExpr = canJoinProgramas ? colExpr('p', pCols, ['nombre', 'name'], 'NULL') : 'NULL';
 
     const cursos = await query(`
       SELECT c.id,
