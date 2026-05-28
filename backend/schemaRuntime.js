@@ -1,4 +1,5 @@
 import { query } from './db.js'
+import bcrypt from 'bcryptjs'
 
 let schemaRuntimeReady = false
 
@@ -25,5 +26,33 @@ export async function ensureSchemaRuntime() {
   } catch (e) {
     console.warn('[schemaRuntime] usuarios.foto_url:', e?.code || e?.message || e)
   }
+
+  try {
+    const bootstrapEmail = String(
+      process.env.BOOTSTRAP_ADMIN_EMAIL || process.env.ADMIN_BOOTSTRAP_EMAIL || 'mario@colgo.edu',
+    )
+      .trim()
+      .toLowerCase()
+    const bootstrapPassword = String(
+      process.env.BOOTSTRAP_ADMIN_PASSWORD || process.env.ADMIN_BOOTSTRAP_PASSWORD || '123',
+    ).trim()
+    if (bootstrapEmail && bootstrapPassword) {
+      const existing = await query('SELECT id FROM usuarios WHERE LOWER(email) = ? LIMIT 1', [
+        bootstrapEmail,
+      ])
+      if (!Array.isArray(existing) || existing.length === 0) {
+        const hash = bcrypt.hashSync(bootstrapPassword, 10)
+        await query(
+          `INSERT INTO usuarios (email, password_hash, rol, activo, cambiar_password)
+           VALUES (?, ?, 'admin', 1, 0)`,
+          [bootstrapEmail, hash],
+        )
+        console.log(`[schemaRuntime] Admin bootstrap creado: ${bootstrapEmail}`)
+      }
+    }
+  } catch (e) {
+    console.warn('[schemaRuntime] bootstrap admin:', e?.code || e?.message || e)
+  }
+
   schemaRuntimeReady = true
 }

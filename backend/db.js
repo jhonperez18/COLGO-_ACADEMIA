@@ -7,6 +7,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
 dotenv.config({ path: path.join(__dirname, '.env') });
 
+function resolveMysqlSsl() {
+  const flag = String(process.env.DB_SSL ?? '').trim().toLowerCase();
+  const host = String(process.env.DB_HOST || '').toLowerCase();
+  if (flag === 'false' || flag === '0') return undefined;
+  if (['1', 'true', 'yes'].includes(flag) || host.includes('aivencloud.com')) {
+    return { rejectUnauthorized: false };
+  }
+  return undefined;
+}
+
+const mysqlSsl = resolveMysqlSsl();
+
 /**
  * Pool de conexiones MySQL
  * - bigNumberStrings: evita BigInt en filas (JSON.stringify fallaría en res.json).
@@ -28,6 +40,7 @@ const pool = mysql.createPool({
   supportBigNumbers: true,
   bigNumberStrings: true,
   dateStrings: true,
+  ...(mysqlSsl ? { ssl: mysqlSsl } : {}),
 });
 
 // Exportar funciones de BD
