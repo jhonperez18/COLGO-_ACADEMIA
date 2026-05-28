@@ -1,4 +1,5 @@
 import { resolveApiBaseUrl } from '../config/apiBaseUrl';
+import { normalizeApiBase } from '../config/normalizeApiBase';
 import { clearSession, getSessionToken } from '../state/authSession';
 
 function realtimeBaseFromApi(apiBase: string): string {
@@ -24,7 +25,7 @@ async function apiCall<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const base = import.meta.env.VITE_API_URL || resolveApiBaseUrl();
+  const base = normalizeApiBase(import.meta.env.VITE_API_URL);
   const response = await fetch(`${base}${endpoint}`, {
     ...options,
     headers,
