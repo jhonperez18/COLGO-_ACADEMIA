@@ -504,32 +504,45 @@ async function ensureDocenteRow(usuarioId, nombre, apellido, documento) {
 }
 
 async function getPersonaPorUsuarioId(usuarioId) {
-  const rows = await query(
-    `SELECT u.id, u.email, u.rol,
-        COALESCE(
-          NULLIF(TRIM(e.documento), ''),
-          NULLIF(TRIM(d.documento), ''),
-          NULLIF(TRIM(sp.documento), ''),
-          NULLIF(TRIM(ap.documento), '')
-        ) AS documento,
-        COALESCE(
-          TRIM(CONCAT(e.nombre, ' ', e.apellido)),
-          TRIM(CONCAT(d.nombre, ' ', d.apellido)),
-          TRIM(CONCAT(sp.nombre, ' ', sp.apellido)),
-          TRIM(CONCAT(ap.nombre, ' ', ap.apellido)),
-          u.email
-        ) AS nombre_completo
-      FROM usuarios u
-      LEFT JOIN estudiantes e ON e.usuario_id = u.id
-      LEFT JOIN docentes d ON d.usuario_id = u.id
-      LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
-      LEFT JOIN admin_perfiles ap ON ap.usuario_id = u.id
-      WHERE u.id = ?
-      LIMIT 1`,
-    [usuarioId],
-  )
-  if (!Array.isArray(rows) || rows.length === 0) return null
-  return rows[0]
+  try {
+    const rows = await query(
+      `SELECT u.id, u.email, u.rol,
+          COALESCE(
+            NULLIF(TRIM(e.documento), ''),
+            NULLIF(TRIM(d.documento), ''),
+            NULLIF(TRIM(sp.documento), ''),
+            NULLIF(TRIM(ap.documento), '')
+          ) AS documento,
+          COALESCE(
+            TRIM(CONCAT(e.nombre, ' ', e.apellido)),
+            TRIM(CONCAT(d.nombre, ' ', d.apellido)),
+            TRIM(CONCAT(sp.nombre, ' ', sp.apellido)),
+            TRIM(CONCAT(ap.nombre, ' ', ap.apellido)),
+            u.email
+          ) AS nombre_completo
+        FROM usuarios u
+        LEFT JOIN estudiantes e ON e.usuario_id = u.id
+        LEFT JOIN docentes d ON d.usuario_id = u.id
+        LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
+        LEFT JOIN admin_perfiles ap ON ap.usuario_id = u.id
+        WHERE u.id = ?
+        LIMIT 1`,
+      [usuarioId],
+    )
+    if (!Array.isArray(rows) || rows.length === 0) return null
+    return rows[0]
+  } catch {
+    // Fallback mínimo para esquemas incompletos en producción.
+    const rows = await query(
+      `SELECT id, email, rol, NULL AS documento, email AS nombre_completo
+       FROM usuarios
+       WHERE id = ?
+       LIMIT 1`,
+      [usuarioId],
+    )
+    if (!Array.isArray(rows) || rows.length === 0) return null
+    return rows[0]
+  }
 }
 
 async function existeDocumentoGlobal(documento) {
@@ -557,41 +570,53 @@ router.get('/', async (req, res) => {
   try {
     if (!(await requireStaffPermission(req, res, 'gestionar_usuarios'))) return
     await ensureSupportTables()
-    const usuarios = await query(`
-      SELECT u.id, u.email, u.rol, u.activo, u.ultimo_acceso, NULL AS fecha_creacion,
-        e.id AS estudiante_id,
-        d.id AS docente_id,
-        COALESCE(
-          TRIM(CONCAT(e.nombre, ' ', e.apellido)),
-          TRIM(CONCAT(d.nombre, ' ', d.apellido)),
-          TRIM(CONCAT(sp.nombre, ' ', sp.apellido)),
-          TRIM(CONCAT(ap.nombre, ' ', ap.apellido)),
-          u.email
-        ) AS nombre_completo,
-        COALESCE(e.documento, d.documento, sp.documento, ap.documento) AS documento,
-        CASE
-          WHEN u.rol = 'docente' THEN (
-            SELECT GROUP_CONCAT(c.nombre ORDER BY c.nombre SEPARATOR ', ')
-            FROM cursos c
-            WHERE c.docente_id = d.id
-          )
-          WHEN u.rol = 'estudiante' THEN (
-            SELECT GROUP_CONCAT(c2.nombre ORDER BY c2.nombre SEPARATOR ', ')
-            FROM matriculas m
-            JOIN cursos c2 ON c2.id = m.curso_id
-            WHERE m.estudiante_id = e.id AND m.estado = 'activa'
-          )
-          ELSE NULL
-        END AS cursos_asignados,
-        COALESCE(up.nivel_confianza, 'baja') AS nivel_confianza
-      FROM usuarios u
-      LEFT JOIN estudiantes e ON e.usuario_id = u.id
-      LEFT JOIN docentes d ON d.usuario_id = u.id
-      LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
-      LEFT JOIN admin_perfiles ap ON ap.usuario_id = u.id
-      LEFT JOIN usuario_permisos up ON up.usuario_id = u.id
-      ORDER BY u.id DESC
-    `)
+    let usuarios
+    try {
+      usuarios = await query(`
+        SELECT u.id, u.email, u.rol, u.activo, u.ultimo_acceso, NULL AS fecha_creacion,
+          e.id AS estudiante_id,
+          d.id AS docente_id,
+          COALESCE(
+            TRIM(CONCAT(e.nombre, ' ', e.apellido)),
+            TRIM(CONCAT(d.nombre, ' ', d.apellido)),
+            TRIM(CONCAT(sp.nombre, ' ', sp.apellido)),
+            TRIM(CONCAT(ap.nombre, ' ', ap.apellido)),
+            u.email
+          ) AS nombre_completo,
+          COALESCE(e.documento, d.documento, sp.documento, ap.documento) AS documento,
+          CASE
+            WHEN u.rol = 'docente' THEN (
+              SELECT GROUP_CONCAT(c.nombre ORDER BY c.nombre SEPARATOR ', ')
+              FROM cursos c
+              WHERE c.docente_id = d.id
+            )
+            WHEN u.rol = 'estudiante' THEN (
+              SELECT GROUP_CONCAT(c2.nombre ORDER BY c2.nombre SEPARATOR ', ')
+              FROM matriculas m
+              JOIN cursos c2 ON c2.id = m.curso_id
+              WHERE m.estudiante_id = e.id AND m.estado = 'activa'
+            )
+            ELSE NULL
+          END AS cursos_asignados,
+          COALESCE(up.nivel_confianza, 'baja') AS nivel_confianza
+        FROM usuarios u
+        LEFT JOIN estudiantes e ON e.usuario_id = u.id
+        LEFT JOIN docentes d ON d.usuario_id = u.id
+        LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
+        LEFT JOIN admin_perfiles ap ON ap.usuario_id = u.id
+        LEFT JOIN usuario_permisos up ON up.usuario_id = u.id
+        ORDER BY u.id DESC
+      `)
+    } catch {
+      usuarios = await query(`
+        SELECT u.id, u.email, u.rol, u.activo, NULL AS ultimo_acceso, NULL AS fecha_creacion,
+               NULL AS estudiante_id, NULL AS docente_id,
+               u.email AS nombre_completo, NULL AS documento,
+               NULL AS cursos_asignados, 'baja' AS nivel_confianza
+        FROM usuarios u
+        ORDER BY u.id DESC
+      `)
+    }
     res.json(usuarios)
   } catch (err) {
     console.error(err)
@@ -604,13 +629,26 @@ router.get('/', async (req, res) => {
  */
 router.get('/cursos-disponibles', async (_req, res) => {
   try {
+    const cCols = await getExistingColumnNames('cursos')
+    const dCols = await getExistingColumnNames('docentes')
+    const nombreCol = cCols.has('nombre') ? 'nombre' : cCols.has('title') ? 'title' : null
+    if (!nombreCol) return res.json([])
+    const codigoExpr = cCols.has('codigo') ? 'c.codigo' : 'NULL AS codigo'
+    const activoExpr = cCols.has('activo') ? 'c.activo = TRUE' : '1=1'
+    const docenteFk = cCols.has('docente_id') ? 'docente_id' : cCols.has('teacher_id') ? 'teacher_id' : null
+    const joinDoc = docenteFk && dCols.size > 0 ? `LEFT JOIN docentes d ON d.id = c.${docenteFk}` : ''
+    const docenteExpr =
+      docenteFk && dCols.size > 0
+        ? `TRIM(CONCAT(${dCols.has('nombre') ? 'd.nombre' : "''"}, ' ', ${dCols.has('apellido') ? 'd.apellido' : "''"})) AS docente`
+        : 'NULL AS docente'
+    const whereDoc = docenteFk ? `AND c.${docenteFk} IS NOT NULL` : ''
     const cursos = await query(
-      `SELECT c.id, c.nombre, c.codigo, c.activo,
-              CONCAT(d.nombre, ' ', d.apellido) AS docente
+      `SELECT c.id, c.${nombreCol} AS nombre, ${codigoExpr}, ${cCols.has('activo') ? 'c.activo' : '1 AS activo'},
+              ${docenteExpr}
        FROM cursos c
-       LEFT JOIN docentes d ON d.id = c.docente_id
-       WHERE c.activo = TRUE AND c.docente_id IS NOT NULL
-       ORDER BY c.nombre ASC`,
+       ${joinDoc}
+       WHERE ${activoExpr} ${whereDoc}
+       ORDER BY c.${nombreCol} ASC`,
     )
     return res.json(Array.isArray(cursos) ? cursos : [])
   } catch (err) {
