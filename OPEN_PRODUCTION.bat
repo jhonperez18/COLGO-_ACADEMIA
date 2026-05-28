@@ -1,5 +1,7 @@
 @echo off
-REM URL unica de produccion (ver DOMINIO_UNICO_VERCEL.md si aun no renombraste en Vercel).
-start "" "chrome" "https://colgo-academia.vercel.app/login"
-echo Produccion: https://colgo-academia.vercel.app/login
-echo Login: MARIO / 123
+REM Version actual (deploy de hoy). NO abras colgo-academia.vercel.app (cache vieja sin API).
+start "" "chrome" "https://colgo-academia-rho.vercel.app/login"
+echo Produccion ACTUAL: https://colgo-academia-rho.vercel.app/login
+echo Login local: MARIO / 123
+echo.
+echo Si necesitas el dominio corto colgo-academia.vercel.app, libera el dominio en Vercel (ver DOMINIO_UNICO_VERCEL.md).

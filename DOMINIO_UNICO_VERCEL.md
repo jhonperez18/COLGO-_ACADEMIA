@@ -1,58 +1,42 @@
-# Un solo dominio: `colgo-academia.vercel.app`
+# URL de producción (versión actual)
 
-Todo el código usa **`https://colgo-academia.vercel.app`** (login, API, correos, scripts).
+## Usa esta URL (código de hoy)
 
-Hoy en Vercel puede haber **dos proyectos**: uno viejo con nombre `colgo-academia` (sin API) y el activo con GitHub (`project-bm9ko`). Hay que dejar **un solo proyecto** con el nombre `colgo-academia`.
+**https://colgo-academia-rho.vercel.app/login**
 
-## Pasos en Vercel (una vez, ~5 min)
+- Abre con `OPEN_PRODUCTION.bat`
+- API: `https://colgo-academia-rho.vercel.app/api/health` → debe responder `status: ok`
 
-### 1. Identificar el proyecto conectado a GitHub
+También válida (mismo código, otro proyecto Vercel): **https://colgo-academi-saas.vercel.app**
 
-1. Entra en [vercel.com/dashboard](https://vercel.com/dashboard).
-2. Abre el proyecto que hace deploy al hacer push a `COLGO-_ACADEMIA` (suele llamarse **project-bm9ko**).
-3. En **Deployments**, confirma que el último deploy viene de GitHub (`main`).
+## No uses esta URL (versión vieja)
 
-### 2. Liberar el nombre `colgo-academia`
+**https://colgo-academia.vercel.app** → frontend del **23 may**, API en **404**.
 
-Si existe **otro** proyecto llamado `colgo-academia` (el viejo, sin API):
+Ese subdominio está **bloqueado** en Vercel (“already in use”) y no apunta al proyecto donde desplegamos. Por eso el navegador sigue mostrando una versión antigua aunque el código en GitHub esté actualizado.
 
-1. Ábrelo → **Settings** → al final **Delete Project**.
-2. Confirma (solo si ese proyecto **no** es el que tiene GitHub conectado).
+## Recuperar `colgo-academia.vercel.app` (opcional)
 
-### 3. Renombrar el proyecto activo
+1. [vercel.com/dashboard](https://vercel.com/dashboard) → **Domains** (o cada proyecto → **Settings → Domains**).
+2. Busca quién usa `colgo-academia.vercel.app` (proyecto borrado, otro repo, etc.).
+3. **Remove** el dominio de ese proyecto.
+4. En el proyecto **colgo-academia** (el que usa `colgo-academia-rho`): **Add** → `colgo-academia.vercel.app`.
+5. Redeploy.
 
-En el proyecto **conectado a GitHub** (el que antes era `project-bm9ko`):
+Si no aparece en tu cuenta, abre ticket en Vercel para liberar el subdominio.
 
-1. **Settings** → **General** → **Project Name**.
-2. Cámbialo a: **`colgo-academia`** (minúsculas, con guión).
-3. Guarda. Vercel asignará **`https://colgo-academia.vercel.app`**.
+## Variables en Vercel (login y datos)
 
-### 4. Variables de entorno (Production)
+En el proyecto **colgo-academia** o **colgo-academi-saas** → **Settings → Environment Variables** (Production), configura al menos:
 
-En **Settings → Environment Variables**, actualiza o crea:
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` (MySQL accesible desde internet, p. ej. Aiven)
+- `JWT_SECRET`
+- `FRONTEND_URL` = `https://colgo-academia-rho.vercel.app`
+- `CORS_ORIGIN` = `https://colgo-academia-rho.vercel.app,http://localhost:5173`
+- `VITE_API_URL` = `/_backend/api` (o dejar vacío)
 
-| Variable | Valor |
-|----------|--------|
-| `FRONTEND_URL` | `https://colgo-academia.vercel.app` |
-| `CORS_ORIGIN` | `https://colgo-academia.vercel.app` (y `http://localhost:5173` si desarrollas en local) |
-| `VITE_API_URL` | `/_backend/api` o vacío (el front usa el mismo host) |
+Sin `DB_*` la app carga pero el login en producción falla con error 500.
 
-Mantén `DB_*`, `JWT_SECRET`, etc. como ya las tengas.
+## Local
 
-### 5. Redeploy
-
-**Deployments** → último deploy → **Redeploy** (o haz un push a `main`).
-
-### 6. Comprobar
-
-- `https://colgo-academia.vercel.app/api/health` → JSON `status: ok`
-- `https://colgo-academia.vercel.app/login` → pantalla actual
-- `https://project-bm9ko.vercel.app/login` → debe redirigir a `colgo-academia` (config en `vercel.json`)
-
-## En local
-
-Sigue igual: `START_ALL.bat` → `http://localhost:5173`
-
-## Producción en el navegador
-
-`OPEN_PRODUCTION.bat` → `https://colgo-academia.vercel.app/login`
+`START_ALL.bat` → http://localhost:5173

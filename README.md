@@ -185,7 +185,7 @@ Sigue la guía en [QUICK_START.md](QUICK_START.md) para instalar dependencias y 
 4. Vercel detecta Vite automáticamente y despliega el frontend.
 5. Accede a tu app en la URL pública que te da Vercel.
 
-**URL de producción (única):** **`https://colgo-academia.vercel.app`**. Si aún ves `project-bm9ko`, renombra el proyecto en Vercel siguiendo **`DOMINIO_UNICO_VERCEL.md`**. En el backend define **`FRONTEND_URL`** = `https://colgo-academia.vercel.app` (sin `/login`). Abre producción con **`OPEN_PRODUCTION.bat`**.
+**URL de producción (versión actual):** **`https://colgo-academia-rho.vercel.app`**. No uses `colgo-academia.vercel.app` (dominio viejo bloqueado). Detalles en **`DOMINIO_UNICO_VERCEL.md`**. Abre producción con **`OPEN_PRODUCTION.bat`**.
 
 **Vincular este repo con tu proyecto de Vercel desde la terminal (no sustituye iniciar sesión en el navegador la primera vez):**
 
