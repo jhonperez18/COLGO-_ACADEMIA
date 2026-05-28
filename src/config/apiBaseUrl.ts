@@ -2,7 +2,7 @@
  * API en Vercel (monorepo): mismo host que el frontend + /_backend/api.
  * Fallback fijo si hace falta (p. ej. tests sin window).
  */
-export const PRODUCTION_API_BASE_URL = 'https://colgo-academia.vercel.app/_backend/api'
+export const PRODUCTION_API_BASE_URL = 'https://project-bm9ko.vercel.app/_backend/api'
 
 function envApiUrlTrimmed(): string {
   // Buscamos la variable que configuramos en el panel de Vercel
