@@ -27,6 +27,18 @@ function hasCol(cols, col) {
   return cols instanceof Set && cols.has(col);
 }
 
+function firstExisting(cols, candidates = []) {
+  for (const c of candidates) {
+    if (hasCol(cols, c)) return c;
+  }
+  return null;
+}
+
+function colExpr(alias, cols, candidates, fallbackSql) {
+  const c = firstExisting(cols, candidates);
+  return c ? `${alias}.${c}` : fallbackSql;
+}
+
 function resolveFrontendBase(req) {
   const envBase = String(process.env.FRONTEND_URL || '').trim().replace(/\/$/, '')
   const origin = String(req?.get?.('origin') || req?.headers?.origin || '').trim().replace(/\/$/, '')
@@ -121,16 +133,32 @@ router.get('/smtp-verify', async (_req, res) => {
 router.get('/estudiantes', async (req, res) => {
   try {
     const eCols = await getTableColumns('estudiantes');
+    const uCols = await getTableColumns('usuarios');
+    if (eCols.size === 0) return res.json([]);
+
+    const studentUserFk = firstExisting(eCols, ['usuario_id', 'user_id']);
+    const nombreExpr = colExpr('e', eCols, ['nombre', 'nombres', 'first_name'], "''");
+    const apellidoExpr = colExpr('e', eCols, ['apellido', 'apellidos', 'last_name'], "''");
     const hasDocumento = hasCol(eCols, 'documento');
     const hasFechaCreacion = hasCol(eCols, 'fecha_creacion');
+    const emailExpr = studentUserFk && uCols.size > 0 ? colExpr('u', uCols, ['email', 'correo'], 'NULL') : 'NULL';
+    const activoExpr = studentUserFk && uCols.size > 0 ? colExpr('u', uCols, ['activo', 'active'], '1') : '1';
+    const userJoin =
+      studentUserFk && uCols.size > 0
+        ? `LEFT JOIN usuarios u ON ${emailExpr === 'NULL' && activoExpr === '1' ? '1=0' : `u.id = e.${studentUserFk}`}`
+        : '';
+
     const estudiantes = await query(`
-      SELECT e.id, e.nombre, e.apellido,
+      SELECT e.id,
+             ${nombreExpr} AS nombre,
+             ${apellidoExpr} AS apellido,
              ${hasDocumento ? 'e.documento' : 'NULL AS documento'},
-             u.email, u.activo,
+             ${emailExpr} AS email,
+             ${activoExpr} AS activo,
              ${hasFechaCreacion ? 'e.fecha_creacion' : 'NULL AS fecha_creacion'}
       FROM estudiantes e
-      JOIN usuarios u ON e.usuario_id = u.id
-      ORDER BY e.nombre
+      ${userJoin}
+      ORDER BY ${nombreExpr}
     `);
     res.json(estudiantes);
   } catch (error) {
@@ -268,14 +296,29 @@ router.delete('/estudiantes/:id', async (req, res) => {
 router.get('/docentes', async (req, res) => {
   try {
     const dCols = await getTableColumns('docentes');
+    const uCols = await getTableColumns('usuarios');
+    if (dCols.size === 0) return res.json([]);
+
+    const docenteUserFk = firstExisting(dCols, ['usuario_id', 'user_id']);
+    const nombreExpr = colExpr('d', dCols, ['nombre', 'nombres', 'first_name'], "''");
+    const apellidoExpr = colExpr('d', dCols, ['apellido', 'apellidos', 'last_name'], "''");
     const hasEspecialidad = hasCol(dCols, 'especialidad');
+    const emailExpr = docenteUserFk && uCols.size > 0 ? colExpr('u', uCols, ['email', 'correo'], 'NULL') : 'NULL';
+    const activoExpr = docenteUserFk && uCols.size > 0 ? colExpr('u', uCols, ['activo', 'active'], '1') : '1';
+    const userJoin =
+      docenteUserFk && uCols.size > 0
+        ? `LEFT JOIN usuarios u ON ${emailExpr === 'NULL' && activoExpr === '1' ? '1=0' : `u.id = d.${docenteUserFk}`}`
+        : '';
     const docentes = await query(`
-      SELECT d.id, d.nombre, d.apellido,
+      SELECT d.id,
+             ${nombreExpr} AS nombre,
+             ${apellidoExpr} AS apellido,
              ${hasEspecialidad ? 'd.especialidad' : 'NULL AS especialidad'},
-             u.email, u.activo
+             ${emailExpr} AS email,
+             ${activoExpr} AS activo
       FROM docentes d
-      JOIN usuarios u ON d.usuario_id = u.id
-      ORDER BY d.nombre
+      ${userJoin}
+      ORDER BY ${nombreExpr}
     `);
     res.json(docentes);
   } catch (error) {
@@ -386,28 +429,64 @@ router.delete('/docentes/:id', async (req, res) => {
 router.get('/cursos', async (req, res) => {
   try {
     const cCols = await getTableColumns('cursos');
+    const pCols = await getTableColumns('programas');
+    const dCols = await getTableColumns('docentes');
     const mCols = await getTableColumns('matriculas');
+    if (cCols.size === 0) return res.json([]);
+
+    const cursoNombreExpr = colExpr('c', cCols, ['nombre', 'title', 'titulo'], "''");
+    const cursoCodigoExpr = colExpr('c', cCols, ['codigo', 'code'], 'NULL');
+    const cursoDescExpr = colExpr('c', cCols, ['descripcion', 'description'], 'NULL');
+    const cursoCreditosExpr = colExpr('c', cCols, ['creditos', 'credits'], 'NULL');
+    const cursoCapacidadExpr = colExpr('c', cCols, ['capacidad', 'capacity'], 'NULL');
+    const cursoSemestreExpr = colExpr('c', cCols, ['semestre', 'semester'], 'NULL');
+    const cursoActivoExpr = colExpr('c', cCols, ['activo', 'active'], '1');
+
     const hasProgramaId = hasCol(cCols, 'programa_id');
-    const hasDocenteId = hasCol(cCols, 'docente_id');
-    const hasEstadoMatricula = hasCol(mCols, 'estado');
+    const hasDocenteId = hasCol(cCols, 'docente_id') || hasCol(cCols, 'teacher_id');
+    const cursoDocenteFk = hasCol(cCols, 'docente_id') ? 'docente_id' : hasCol(cCols, 'teacher_id') ? 'teacher_id' : null;
+    const matriculaCursoFk = firstExisting(mCols, ['curso_id', 'course_id']);
+    const matriculaIdCol = firstExisting(mCols, ['id']);
+    const hasEstadoMatricula = hasCol(mCols, 'estado') || hasCol(mCols, 'status');
+    const estadoCol = hasCol(mCols, 'estado') ? 'estado' : hasCol(mCols, 'status') ? 'status' : null;
+    const programaJoin =
+      hasProgramaId && pCols.size > 0
+        ? 'LEFT JOIN programas p ON p.id = c.programa_id'
+        : '';
+    const docenteJoin =
+      hasDocenteId && dCols.size > 0 && cursoDocenteFk
+        ? `LEFT JOIN docentes d ON c.${cursoDocenteFk} = d.id`
+        : '';
+    const docenteNombreExpr =
+      dCols.size > 0
+        ? `TRIM(CONCAT(${colExpr('d', dCols, ['nombre', 'nombres', 'first_name'], "''")}, ' ', ${colExpr('d', dCols, ['apellido', 'apellidos', 'last_name'], "''")}))`
+        : "''";
+    const matriculaJoin =
+      mCols.size > 0 && matriculaCursoFk
+        ? `LEFT JOIN matriculas m ON m.${matriculaCursoFk} = c.id ${hasEstadoMatricula && estadoCol ? `AND LOWER(m.${estadoCol}) IN ('activa','active')` : ''}`
+        : '';
+    const programaNombreExpr = pCols.size > 0 ? colExpr('p', pCols, ['nombre', 'name'], 'NULL') : 'NULL';
+    const countExpr = mCols.size > 0 && matriculaIdCol ? `COUNT(m.${matriculaIdCol})` : '0';
+
     const cursos = await query(`
-      SELECT c.id, c.nombre,
-             ${hasCol(cCols, 'codigo') ? 'c.codigo' : 'NULL AS codigo'},
-             ${hasCol(cCols, 'descripcion') ? 'c.descripcion' : 'NULL AS descripcion'},
-             ${hasCol(cCols, 'creditos') ? 'c.creditos' : 'NULL AS creditos'},
-             ${hasCol(cCols, 'capacidad') ? 'c.capacidad' : 'NULL AS capacidad'},
-             ${hasCol(cCols, 'semestre') ? 'c.semestre' : 'NULL AS semestre'},
-             ${hasCol(cCols, 'activo') ? 'c.activo' : '1 AS activo'},
+      SELECT c.id,
+             ${cursoNombreExpr} AS nombre,
+             ${cursoCodigoExpr} AS codigo,
+             ${cursoDescExpr} AS descripcion,
+             ${cursoCreditosExpr} AS creditos,
+             ${cursoCapacidadExpr} AS capacidad,
+             ${cursoSemestreExpr} AS semestre,
+             ${cursoActivoExpr} AS activo,
              ${hasProgramaId ? 'c.programa_id' : 'NULL AS programa_id'},
-             p.nombre as programa,
-             CONCAT(d.nombre, ' ', d.apellido) as docente,
-             COUNT(m.id) as estudiantes_inscritos
+             ${programaNombreExpr} AS programa,
+             ${docenteNombreExpr} AS docente,
+             ${countExpr} AS estudiantes_inscritos
       FROM cursos c
-      LEFT JOIN programas p ON p.id = ${hasProgramaId ? 'c.programa_id' : 'NULL'}
-      LEFT JOIN docentes d ON ${hasDocenteId ? 'c.docente_id' : 'NULL'} = d.id
-      LEFT JOIN matriculas m ON m.curso_id = c.id ${hasEstadoMatricula ? "AND m.estado = 'activa'" : ''}
+      ${programaJoin}
+      ${docenteJoin}
+      ${matriculaJoin}
       GROUP BY c.id
-      ORDER BY ${hasCol(cCols, 'codigo') ? 'c.codigo' : 'c.nombre'}
+      ORDER BY ${cursoCodigoExpr !== 'NULL' ? cursoCodigoExpr : cursoNombreExpr}
     `);
     res.json(cursos);
   } catch (error) {

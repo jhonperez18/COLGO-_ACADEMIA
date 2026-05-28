@@ -19,10 +19,8 @@ import { backofficeAmberInsetHairline, backofficePanelCardClass } from '../compo
 import { cn } from '../utils/cn'
 import { saveBlobAs } from '../utils/saveFileAs'
 import { withOptimisticUpdate } from '../utils/optimistic'
-import { useColgo } from '../state/useColgo'
 
 export function CursosPage() {
-  const { courses: mockCourses, students: mockStudents } = useColgo()
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
@@ -168,38 +166,7 @@ export function CursosPage() {
       setEstudiantes(Array.isArray(estudiantesApi) ? (estudiantesApi as typeof estudiantes) : [])
       setProgramas(Array.isArray(programasApi) ? (programasApi as typeof programas) : [])
     } catch (e) {
-      const fallbackCursos = mockCourses.map((c, idx) => ({
-        id: idx + 1,
-        nombre: c.title,
-        codigo: `CRS-${String(idx + 1).padStart(3, '0')}`,
-        descripcion: c.description,
-        docente: '',
-        programa: c.level,
-        programa_id: null,
-        capacidad: Number(c.weeklyHours || 0) * 8 || 30,
-        estudiantes_inscritos: 0,
-      }))
-      const fallbackEstudiantes = mockStudents.map((s, idx) => {
-        const [nombre, ...resto] = String(s.name || '').trim().split(' ')
-        return {
-          id: idx + 1,
-          nombre: nombre || `Estudiante ${idx + 1}`,
-          apellido: resto.join(' ') || '',
-          email: `${String(s.document || idx + 1).replace(/\D/g, '')}@colgo.local`,
-        }
-      })
-      setCursos(fallbackCursos)
-      setEstudiantes(fallbackEstudiantes)
-      setDocentes([])
-      setProgramas(
-        Array.from(new Set(mockCourses.map((c) => c.level))).map((nivel, idx) => ({
-          id: idx + 1,
-          nombre: `Programa ${nivel}`,
-          codigo: `PRG-${idx + 1}`,
-          activo: true,
-        })),
-      )
-      setError('Sincronización parcial: mostrando datos base mientras se corrige el backend de producción.')
+      setError(e instanceof Error ? e.message : 'No se pudo cargar la información académica.')
     } finally {
       setCargando(false)
     }
@@ -207,7 +174,7 @@ export function CursosPage() {
 
   useEffect(() => {
     void load()
-  }, [mockCourses, mockStudents])
+  }, [])
 
   const patchCursoLocal = (
     cursoId: number,
