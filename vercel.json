@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/backend/$1"
+      "destination": "/_backend/api/$1"
     }
   ],
   "experimentalServices": {
@@ -13,7 +13,7 @@
     },
     "backend": {
       "entrypoint": "backend",
-      "routePrefix": "/_/backend"
+      "routePrefix": "/_backend"
     }
   }
 }
