@@ -7,6 +7,25 @@ import { sendCredentialsEmail, verifyEmailConnection, isSmtpConfigured } from '.
 import { validateCreateStudent, validateUpdateStudent, validateCreateTeacher, validateCreateCourse, handleValidationErrors } from '../utils/validators.js';
 
 const router = express.Router();
+const tableColumnsCache = new Map();
+
+async function getTableColumns(tableName) {
+  if (tableColumnsCache.has(tableName)) return tableColumnsCache.get(tableName);
+  const rows = await query(
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?`,
+    [tableName],
+  );
+  const cols = new Set((rows || []).map((r) => String(r.COLUMN_NAME || '')));
+  tableColumnsCache.set(tableName, cols);
+  return cols;
+}
+
+function hasCol(cols, col) {
+  return cols instanceof Set && cols.has(col);
+}
 
 function resolveFrontendBase(req) {
   const envBase = String(process.env.FRONTEND_URL || '').trim().replace(/\/$/, '')
@@ -101,8 +120,14 @@ router.get('/smtp-verify', async (_req, res) => {
 // GET - Listar todos los estudiantes
 router.get('/estudiantes', async (req, res) => {
   try {
+    const eCols = await getTableColumns('estudiantes');
+    const hasDocumento = hasCol(eCols, 'documento');
+    const hasFechaCreacion = hasCol(eCols, 'fecha_creacion');
     const estudiantes = await query(`
-      SELECT e.id, e.nombre, e.apellido, e.documento, u.email, u.activo, e.fecha_creacion
+      SELECT e.id, e.nombre, e.apellido,
+             ${hasDocumento ? 'e.documento' : 'NULL AS documento'},
+             u.email, u.activo,
+             ${hasFechaCreacion ? 'e.fecha_creacion' : 'NULL AS fecha_creacion'}
       FROM estudiantes e
       JOIN usuarios u ON e.usuario_id = u.id
       ORDER BY e.nombre
@@ -242,8 +267,12 @@ router.delete('/estudiantes/:id', async (req, res) => {
 // GET - Listar todos los docentes
 router.get('/docentes', async (req, res) => {
   try {
+    const dCols = await getTableColumns('docentes');
+    const hasEspecialidad = hasCol(dCols, 'especialidad');
     const docentes = await query(`
-      SELECT d.id, d.nombre, d.apellido, d.especialidad, u.email, u.activo
+      SELECT d.id, d.nombre, d.apellido,
+             ${hasEspecialidad ? 'd.especialidad' : 'NULL AS especialidad'},
+             u.email, u.activo
       FROM docentes d
       JOIN usuarios u ON d.usuario_id = u.id
       ORDER BY d.nombre
@@ -356,18 +385,29 @@ router.delete('/docentes/:id', async (req, res) => {
 // GET - Listar todos los cursos
 router.get('/cursos', async (req, res) => {
   try {
+    const cCols = await getTableColumns('cursos');
+    const mCols = await getTableColumns('matriculas');
+    const hasProgramaId = hasCol(cCols, 'programa_id');
+    const hasDocenteId = hasCol(cCols, 'docente_id');
+    const hasEstadoMatricula = hasCol(mCols, 'estado');
     const cursos = await query(`
-      SELECT c.id, c.nombre, c.codigo, c.descripcion, c.creditos, c.capacidad, c.semestre, c.activo,
-             c.programa_id,
+      SELECT c.id, c.nombre,
+             ${hasCol(cCols, 'codigo') ? 'c.codigo' : 'NULL AS codigo'},
+             ${hasCol(cCols, 'descripcion') ? 'c.descripcion' : 'NULL AS descripcion'},
+             ${hasCol(cCols, 'creditos') ? 'c.creditos' : 'NULL AS creditos'},
+             ${hasCol(cCols, 'capacidad') ? 'c.capacidad' : 'NULL AS capacidad'},
+             ${hasCol(cCols, 'semestre') ? 'c.semestre' : 'NULL AS semestre'},
+             ${hasCol(cCols, 'activo') ? 'c.activo' : '1 AS activo'},
+             ${hasProgramaId ? 'c.programa_id' : 'NULL AS programa_id'},
              p.nombre as programa,
              CONCAT(d.nombre, ' ', d.apellido) as docente,
              COUNT(m.id) as estudiantes_inscritos
       FROM cursos c
-      LEFT JOIN programas p ON p.id = c.programa_id
-      LEFT JOIN docentes d ON c.docente_id = d.id
-      LEFT JOIN matriculas m ON m.curso_id = c.id AND m.estado = 'activa'
+      LEFT JOIN programas p ON p.id = ${hasProgramaId ? 'c.programa_id' : 'NULL'}
+      LEFT JOIN docentes d ON ${hasDocenteId ? 'c.docente_id' : 'NULL'} = d.id
+      LEFT JOIN matriculas m ON m.curso_id = c.id ${hasEstadoMatricula ? "AND m.estado = 'activa'" : ''}
       GROUP BY c.id
-      ORDER BY c.codigo
+      ORDER BY ${hasCol(cCols, 'codigo') ? 'c.codigo' : 'c.nombre'}
     `);
     res.json(cursos);
   } catch (error) {
