@@ -3,7 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/common/Button'
 import { resolveApiBaseUrl } from '../config/apiBaseUrl'
 import { login } from '../services/apiClient'
-import { clearSession, getDashboardPathByRole, loadSessionUser, persistSession } from '../state/authSession'
+import {
+  clearSession,
+  getDashboardPathByRole,
+  hasValidLocalSession,
+  loadSessionUser,
+  persistSession,
+} from '../state/authSession'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -39,16 +45,17 @@ export function LoginPage() {
 
   const forceLogin = new URLSearchParams(location.search).get('force_login') === '1'
 
-  // Si hay sesión guardada, /login redirige al panel; con ?force_login=1 se ignora y se pide usuario de nuevo.
+  // Solo redirige al panel si ya inició sesión en esta pestaña; ?force_login=1 siempre pide credenciales.
   useEffect(() => {
     if (forceLogin) {
       clearSession()
-      navigate('/login', { replace: true })
       return
     }
-    const usuario = loadSessionUser()
-    if (usuario) {
-      navigate(getDashboardPathByRole(usuario.rol), { replace: true })
+    if (hasValidLocalSession()) {
+      const usuario = loadSessionUser()
+      if (usuario) {
+        navigate(getDashboardPathByRole(usuario.rol), { replace: true })
+      }
     }
   }, [forceLogin, navigate])
 

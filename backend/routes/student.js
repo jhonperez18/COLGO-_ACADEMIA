@@ -83,27 +83,54 @@ router.put('/perfil', async (req, res) => {
       await query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [raw, req.user.id]);
     }
 
-    await query(
-      `UPDATE estudiantes
-       SET nombre = ?, apellido = ?, documento = ?, tipo_documento = ?, telefono = ?, direccion = ?, ciudad = ?,
-           pais = ?, departamento = ?, municipio = ?, fecha_nacimiento = ?, estado_civil = ?
-       WHERE usuario_id = ?`,
-      [
-        nombre || null,
-        apellido || null,
-        documento || null,
-        tipo_documento || null,
-        telefono || null,
-        direccion || null,
-        ciudad || null,
-        pais || null,
-        departamento || null,
-        municipio || null,
-        fecha_nacimiento || null,
-        estado_civil || null,
-        req.user.id,
-      ]
-    );
+    const hasProfileFields = [
+      'nombre',
+      'apellido',
+      'documento',
+      'tipo_documento',
+      'telefono',
+      'direccion',
+      'ciudad',
+      'pais',
+      'departamento',
+      'municipio',
+      'fecha_nacimiento',
+      'estado_civil',
+    ].some((k) => Object.prototype.hasOwnProperty.call(req.body || {}, k));
+
+    if (hasProfileFields) {
+      await query(
+        `UPDATE estudiantes
+         SET nombre = COALESCE(?, nombre),
+             apellido = COALESCE(?, apellido),
+             documento = COALESCE(?, documento),
+             tipo_documento = COALESCE(?, tipo_documento),
+             telefono = COALESCE(?, telefono),
+             direccion = COALESCE(?, direccion),
+             ciudad = COALESCE(?, ciudad),
+             pais = COALESCE(?, pais),
+             departamento = COALESCE(?, departamento),
+             municipio = COALESCE(?, municipio),
+             fecha_nacimiento = COALESCE(?, fecha_nacimiento),
+             estado_civil = COALESCE(?, estado_civil)
+         WHERE usuario_id = ?`,
+        [
+          nombre ?? null,
+          apellido ?? null,
+          documento ?? null,
+          tipo_documento ?? null,
+          telefono ?? null,
+          direccion ?? null,
+          ciudad ?? null,
+          pais ?? null,
+          departamento ?? null,
+          municipio ?? null,
+          fecha_nacimiento ?? null,
+          estado_civil ?? null,
+          req.user.id,
+        ],
+      );
+    }
 
     res.json({ success: true, message: 'Perfil actualizado' });
   } catch (error) {

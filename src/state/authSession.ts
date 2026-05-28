@@ -7,8 +7,39 @@ export type SessionUser = {
 
 const TOKEN_KEY = 'token'
 const USER_KEY = 'usuario'
+const SESSION_ACTIVE_KEY = 'colgo_auth_active'
 let tokenCache: string | null = null
 let userCache: SessionUser | null | undefined = undefined
+
+export function hasActiveBrowserSession(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markSessionActive(): void {
+  try {
+    sessionStorage.setItem(SESSION_ACTIVE_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearSessionActive(): void {
+  try {
+    sessionStorage.removeItem(SESSION_ACTIVE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isTokenExpired(token: string): boolean {
+  const payload = decodeJwtPayload(token)
+  if (!payload || typeof payload.exp !== 'number') return false
+  return Date.now() >= payload.exp * 1000
+}
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -78,6 +109,7 @@ export function persistSession(token: string, usuario: SessionUser): void {
   userCache = usuario
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(USER_KEY, JSON.stringify(usuario))
+  markSessionActive()
 }
 
 export function clearSession(): void {
@@ -85,6 +117,21 @@ export function clearSession(): void {
   userCache = null
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  clearSessionActive()
+}
+
+/** Sesión local válida para esta pestaña (token + usuario + pestaña activa + JWT no expirado). */
+export function hasValidLocalSession(): boolean {
+  if (!hasActiveBrowserSession()) return false
+  const token = getSessionToken()
+  const user = loadSessionUser()
+  if (!token || !user) return false
+  if (token === 'auth-token') return false
+  if (isTokenExpired(token)) {
+    clearSession()
+    return false
+  }
+  return true
 }
 
 export function loadSessionUser(): SessionUser | null {
@@ -94,5 +141,10 @@ export function loadSessionUser(): SessionUser | null {
 
 export function getSessionToken(): string | null {
   hydrateFromStorage()
-  return tokenCache ?? null
+  const token = tokenCache ?? null
+  if (token && isTokenExpired(token)) {
+    clearSession()
+    return null
+  }
+  return token
 }

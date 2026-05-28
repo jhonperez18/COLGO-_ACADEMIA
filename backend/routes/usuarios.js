@@ -8,7 +8,33 @@ import { generateSecurePassword } from '../utils/passwordGenerator.js'
 const router = express.Router()
 
 const ROLES = ['admin', 'estudiante', 'docente', 'staff']
+const MAX_FOTO_CHARS = 800000
 let supportTablesReady = false
+
+async function readFotoUrlForUsuario(usuarioId) {
+  await ensureSchemaRuntime()
+  try {
+    const rows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [usuarioId])
+    if (!Array.isArray(rows) || !rows[0] || rows[0].foto_url == null || rows[0].foto_url === '') {
+      return null
+    }
+    const fv = rows[0].foto_url
+    return Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv)
+  } catch {
+    return null
+  }
+}
+
+async function saveFotoUrlForUsuario(usuarioId, foto_url) {
+  await ensureSchemaRuntime()
+  const raw = foto_url == null || foto_url === '' ? null : String(foto_url)
+  if (raw && raw.length > MAX_FOTO_CHARS) {
+    const err = new Error('FOTO_TOO_LARGE')
+    err.code = 'FOTO_TOO_LARGE'
+    throw err
+  }
+  await query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [raw, usuarioId])
+}
 
 function resolveFrontendBase(req) {
   const envBase = String(process.env.FRONTEND_URL || '').trim().replace(/\/$/, '')
@@ -691,6 +717,7 @@ export async function handleMePerfilGet(req, res) {
     const meId = Number(req.user?.id || 0)
     if (!meId) return res.status(401).json({ error: 'Sesión inválida' })
     const base = await getPersonaPorUsuarioId(meId)
+    const foto_url = await readFotoUrlForUsuario(meId)
     if (rol === 'admin') {
       const perfil = await selectAdminPerfilCampos(meId)
       return res.json({
@@ -702,6 +729,7 @@ export async function handleMePerfilGet(req, res) {
         documento: String((perfil && perfil.documento) || ''),
         telefono: String((perfil && perfil.telefono) || ''),
         cargo: String((perfil && perfil.cargo) || ''),
+        foto_url,
       })
     }
     const perfil = await selectStaffPerfilCampos(meId)
@@ -714,6 +742,7 @@ export async function handleMePerfilGet(req, res) {
       documento: String((perfil && perfil.documento) || ''),
       telefono: String((perfil && perfil.telefono) || ''),
       area: String((perfil && perfil.area) || ''),
+      foto_url,
     })
   } catch (err) {
     console.error(err)
@@ -739,41 +768,65 @@ export async function handleMePerfilPut(req, res) {
     const area = String(raw.area ?? '').trim()
     const cargo = String(raw.cargo ?? '').trim()
 
+    if (Object.prototype.hasOwnProperty.call(raw, 'foto_url')) {
+      try {
+        await saveFotoUrlForUsuario(meId, raw.foto_url)
+      } catch (e) {
+        if (e?.code === 'FOTO_TOO_LARGE') {
+          return res.status(400).json({
+            error: 'La foto es demasiado grande. Usa una imagen más pequeña (por ejemplo menos de 1,5 MB).',
+          })
+        }
+        throw e
+      }
+    }
+
+    const hasAdminFields = ['nombre', 'apellido', 'documento', 'telefono', 'cargo'].some((k) =>
+      Object.prototype.hasOwnProperty.call(raw, k),
+    )
+    const hasStaffFields = ['nombre', 'apellido', 'documento', 'telefono', 'area'].some((k) =>
+      Object.prototype.hasOwnProperty.call(raw, k),
+    )
+
     if (rol === 'admin') {
-      await ensureAdminProfileTable()
+      if (hasAdminFields) {
+        await ensureAdminProfileTable()
+        await query(
+          `INSERT INTO admin_perfiles (usuario_id, nombre, apellido, documento, telefono, cargo)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             nombre = VALUES(nombre),
+             apellido = VALUES(apellido),
+             documento = VALUES(documento),
+             telefono = VALUES(telefono),
+             cargo = VALUES(cargo)`,
+          [meId, nombre || null, apellido || null, documento || null, telefono || null, cargo || null],
+        )
+      }
+      return res.json({ success: true, message: 'Perfil actualizado correctamente' })
+    }
+
+    if (hasStaffFields) {
+      await ensureStaffProfileTable()
       await query(
-        `INSERT INTO admin_perfiles (usuario_id, nombre, apellido, documento, telefono, cargo)
+        `INSERT INTO staff_perfiles (usuario_id, nombre, apellido, documento, telefono, area)
          VALUES (?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            nombre = VALUES(nombre),
            apellido = VALUES(apellido),
            documento = VALUES(documento),
            telefono = VALUES(telefono),
-           cargo = VALUES(cargo)`,
-        [meId, nombre || null, apellido || null, documento || null, telefono || null, cargo || null],
+           area = VALUES(area)`,
+        [
+          meId,
+          nombre || null,
+          apellido || null,
+          documento || null,
+          telefono || null,
+          area || null,
+        ],
       )
-      return res.json({ success: true, message: 'Perfil actualizado correctamente' })
     }
-
-    await ensureStaffProfileTable()
-    await query(
-      `INSERT INTO staff_perfiles (usuario_id, nombre, apellido, documento, telefono, area)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         nombre = VALUES(nombre),
-         apellido = VALUES(apellido),
-         documento = VALUES(documento),
-         telefono = VALUES(telefono),
-         area = VALUES(area)`,
-      [
-        meId,
-        nombre || null,
-        apellido || null,
-        documento || null,
-        telefono || null,
-        area || null,
-      ],
-    )
     return res.json({ success: true, message: 'Perfil actualizado correctamente' })
   } catch (err) {
     console.error(err)

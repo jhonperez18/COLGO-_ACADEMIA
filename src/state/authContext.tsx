@@ -1,7 +1,7 @@
 
 import { useMemo, useState, useEffect, type ReactNode } from 'react'
 import { AuthContext } from './authContextProvider'
-import { clearSession, loadSessionUser, persistSession } from './authSession'
+import { clearSession, hasValidLocalSession, loadSessionUser, persistSession } from './authSession'
 
 interface Usuario {
   id: number
@@ -15,9 +15,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Restaurar sesión desde localStorage
+  // Restaurar sesión solo si el usuario inició sesión en esta pestaña
   useEffect(() => {
-    const usuarioGuardado = loadSessionUser()
+    const usuarioGuardado = hasValidLocalSession() ? loadSessionUser() : null
     if (usuarioGuardado) {
       setUsuario({
         id: Number(usuarioGuardado.id ?? 0),

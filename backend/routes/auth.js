@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../db.js';
+import { ensureSchemaRuntime } from '../schemaRuntime.js';
 import { validateLogin, handleValidationErrors } from '../utils/validators.js';
 import { authenticateJWT, authorizeRole } from '../middleware/auth.js';
 import { handleMePerfilGet, handleMePerfilPut } from './usuarios.js';
@@ -189,6 +190,18 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
+    let foto_url = null;
+    try {
+      await ensureSchemaRuntime();
+      const fr = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [usuario.id]);
+      if (Array.isArray(fr) && fr[0] && fr[0].foto_url != null && fr[0].foto_url !== '') {
+        const fv = fr[0].foto_url;
+        foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+      }
+    } catch {
+      /* no crítico */
+    }
+
     // Retornar token y datos del usuario
     res.json({
       success: true,
@@ -198,7 +211,8 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
         email: usuario.email,
         rol: usuario.rol,
         cambiar_password: usuario.cambiar_password,
-        nombre_panel: nombrePanel
+        nombre_panel: nombrePanel,
+        foto_url,
       }
     });
   } catch (error) {

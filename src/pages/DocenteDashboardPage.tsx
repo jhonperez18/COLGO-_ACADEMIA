@@ -668,7 +668,22 @@ export function DocenteDashboardPage() {
                 Elegir foto
               </Button>
               {fotoPerfil ? (
-                <Button type="button" size="sm" variant="secondary" onClick={() => setFotoPerfil('')}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        setFotoPerfil('')
+                        await updateTeacherPerfil({ foto_url: null })
+                        setProfileOk('Foto eliminada.')
+                      } catch (err) {
+                        setProfileError(err instanceof Error ? err.message : 'No se pudo quitar la foto.')
+                      }
+                    })()
+                  }}
+                >
                   Quitar foto
                 </Button>
               ) : null}
@@ -694,8 +709,10 @@ export function DocenteDashboardPage() {
                     try {
                       const dataUrl = await buildProfilePhotoDataUrl(f)
                       setFotoPerfil(dataUrl)
+                      await updateTeacherPerfil({ foto_url: dataUrl })
+                      setProfileOk('Foto guardada en el sistema.')
                     } catch (err) {
-                      setProfileError(err instanceof Error ? err.message : 'No se pudo procesar la imagen.')
+                      setProfileError(err instanceof Error ? err.message : 'No se pudo guardar la foto.')
                     }
                   })()
                 }}

@@ -17,6 +17,7 @@ import { getSessionToken, loadSessionUser, persistSession } from '../../state/au
 import { Modal } from '../common/Modal'
 import { Button } from '../common/Button'
 import { changePassword, getUsuariosMePerfil, updateUsuariosMePerfil } from '../../services/apiClient'
+import { buildProfilePhotoDataUrl } from '../../utils/profilePhotoDataUrl'
 import {
   backofficeBottomAccentClass,
   backofficeDarkCardChrome,
@@ -134,25 +135,32 @@ export function Header({
   }, [profile.displayName, sessionUser])
 
   useEffect(() => {
+    let cancelled = false
     const userId = String(sessionUser?.id ?? 'anon')
     const profileRaw = localStorage.getItem(`profile_settings_${userId}`)
     const uiRaw = localStorage.getItem(`ui_settings_${userId}`)
 
+    let nextProfile: UserProfileSettings = {
+      displayName: String(sessionUser?.nombre_panel ?? ''),
+      phone: '',
+      city: '',
+      bio: '',
+      avatarDataUrl: typeof sessionUser?.foto_url === 'string' ? sessionUser.foto_url : '',
+    }
+
     if (profileRaw) {
       try {
         const parsed = JSON.parse(profileRaw) as UserProfileSettings
-        setProfile({
-          displayName: parsed.displayName ?? '',
+        nextProfile = {
+          displayName: parsed.displayName ?? nextProfile.displayName,
           phone: parsed.phone ?? '',
           city: parsed.city ?? '',
           bio: parsed.bio ?? '',
-          avatarDataUrl: parsed.avatarDataUrl ?? '',
-        })
+          avatarDataUrl: parsed.avatarDataUrl ?? nextProfile.avatarDataUrl,
+        }
       } catch {
         // Ignorar preferencias corruptas
       }
-    } else {
-      setProfile((prev) => ({ ...prev, displayName: String(sessionUser?.nombre_panel ?? '') }))
     }
 
     if (uiRaw) {
@@ -168,7 +176,25 @@ export function Header({
         // Ignorar preferencias corruptas
       }
     }
-  }, [sessionUser?.id, sessionUser?.nombre_panel])
+
+    void (async () => {
+      const rol = sessionUser?.rol
+      if (rol === 'admin' || rol === 'staff') {
+        try {
+          const data = (await getUsuariosMePerfil()) as Record<string, unknown>
+          const foto = typeof data.foto_url === 'string' ? data.foto_url : ''
+          if (foto) nextProfile.avatarDataUrl = foto
+        } catch {
+          /* preferir caché local si la API falla */
+        }
+      }
+      if (!cancelled) setProfile(nextProfile)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [sessionUser?.id, sessionUser?.nombre_panel, sessionUser?.rol, sessionUser?.foto_url])
 
   useEffect(() => {
     if (!profileOpen || sessionUser?.rol !== 'admin') return
@@ -223,29 +249,63 @@ export function Header({
     }
   }, [uiSettings])
 
-  const saveProfileAndPreferences = () => {
+  const saveProfileAndPreferences = async () => {
     const userId = String(sessionUser?.id ?? 'anon')
-    localStorage.setItem(`profile_settings_${userId}`, JSON.stringify(profile))
-    localStorage.setItem(`ui_settings_${userId}`, JSON.stringify(uiSettings))
-    if (sessionUser) {
-      persistSession(getSessionToken() || '', {
-        ...sessionUser,
-        nombre_panel: profile.displayName || sessionUser.nombre_panel,
-      })
+    setSavingProfile(true)
+    setProfileFeedback(null)
+    try {
+      if (sessionUser?.rol === 'admin' || sessionUser?.rol === 'staff') {
+        await updateUsuariosMePerfil({
+          foto_url: profile.avatarDataUrl || null,
+        })
+      }
+      localStorage.setItem(`profile_settings_${userId}`, JSON.stringify(profile))
+      localStorage.setItem(`ui_settings_${userId}`, JSON.stringify(uiSettings))
+      if (sessionUser) {
+        persistSession(getSessionToken() || '', {
+          ...sessionUser,
+          nombre_panel: profile.displayName || sessionUser.nombre_panel,
+          foto_url: profile.avatarDataUrl || null,
+        })
+      }
+      setProfileFeedback('Perfil y personalización guardados.')
+      setProfileOpen(false)
+      setUserOpen(false)
+      setNotifOpen(false)
+    } catch (e) {
+      setProfileFeedback(e instanceof Error ? e.message : 'No se pudo guardar el perfil')
+    } finally {
+      setSavingProfile(false)
     }
-    setProfileFeedback('Perfil y personalización guardados.')
-    setProfileOpen(false)
-    setUserOpen(false)
-    setNotifOpen(false)
   }
 
   const onPhotoSelected = (file: File | null) => {
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      setProfile((prev) => ({ ...prev, avatarDataUrl: String(reader.result ?? '') }))
+    if (!file.type.startsWith('image/')) {
+      setProfileFeedback('El archivo debe ser una imagen.')
+      return
     }
-    reader.readAsDataURL(file)
+    void (async () => {
+      try {
+        const dataUrl = await buildProfilePhotoDataUrl(file)
+        setProfile((prev) => ({ ...prev, avatarDataUrl: dataUrl }))
+        if (sessionUser?.rol === 'admin' || sessionUser?.rol === 'staff') {
+          await updateUsuariosMePerfil({ foto_url: dataUrl })
+          const userId = String(sessionUser.id ?? 'anon')
+          const cached = {
+            ...profile,
+            avatarDataUrl: dataUrl,
+          }
+          localStorage.setItem(`profile_settings_${userId}`, JSON.stringify(cached))
+          if (sessionUser) {
+            persistSession(getSessionToken() || '', { ...sessionUser, foto_url: dataUrl })
+          }
+          setProfileFeedback('Foto guardada en el sistema.')
+        }
+      } catch (e) {
+        setProfileFeedback(e instanceof Error ? e.message : 'No se pudo guardar la foto')
+      }
+    })()
   }
 
   const guardarDatosAdmin = async () => {
@@ -263,6 +323,7 @@ export function Header({
         documento: adminForm.documento.trim(),
         telefono: adminForm.telefono.trim(),
         cargo: adminForm.cargo.trim(),
+        foto_url: profile.avatarDataUrl || null,
       })
       const display = [adminForm.nombre.trim(), adminForm.apellido.trim()].filter(Boolean).join(' ')
       setProfile((prev) => ({ ...prev, displayName: display }))
@@ -663,7 +724,9 @@ export function Header({
         ) : null}
 
         <div className="mt-4 flex justify-end">
-          <Button onClick={saveProfileAndPreferences}>Guardar cambios</Button>
+          <Button onClick={() => void saveProfileAndPreferences()} disabled={savingProfile}>
+            {savingProfile ? 'Guardando…' : 'Guardar cambios'}
+          </Button>
         </div>
       </Modal>
     </header>

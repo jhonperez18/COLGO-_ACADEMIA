@@ -79,6 +79,10 @@ export async function logout() {
   clearSession();
 }
 
+export async function getAuthMe() {
+  return apiCall<{ success: boolean; usuario: Record<string, unknown> }>('/auth/me');
+}
+
 // ============ STUDENT ENDPOINTS ============
 export async function getStudentPerfil() {
   return apiCall('/student/perfil');
