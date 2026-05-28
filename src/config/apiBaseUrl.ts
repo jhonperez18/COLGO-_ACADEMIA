@@ -43,11 +43,7 @@ export function resolveApiBaseUrl(): string {
     return fromEnv
   }
 
-  // 3. Si no hay variable, intentamos construirla basándonos en donde estamos parados
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/_backend/api`.replace(/\/$/, '')
-  }
-
-  // 4. Último recurso para el build: la constante fija
+  // 3. Fallback estable en producción: API pública externa (Render).
+  // Evita apuntar a /_backend/api cuando el backend de Vercel no tiene DB configurada.
   return PRODUCTION_API_BASE_URL.replace(/\/$/, '')
 }
