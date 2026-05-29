@@ -35,6 +35,63 @@ function parseDatabaseUrl(url) {
   }
 }
 
+function parseServiceUriParams(raw) {
+  if (!raw) return null
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  return typeof raw === 'object' ? raw : null
+}
+
+function isRedacted(value) {
+  const v = String(value || '').trim()
+  return !v || v === '<redacted>' || /^REDACTED$/i.test(v)
+}
+
+async function waitForAivenService(project, service, headers, maxWaitMs = 300000) {
+  const started = Date.now()
+  while (Date.now() - started < maxWaitMs) {
+    const detail = await fetch(
+      `https://api.aiven.io/v1/project/${encodeURIComponent(project)}/service/${encodeURIComponent(service)}`,
+      { headers },
+    )
+    const info = await detail.json()
+    const svc = info?.service
+    const state = String(svc?.state || '').toUpperCase()
+    if (state === 'RUNNING') return svc
+    if (['POWEROFF', 'OFF'].includes(state)) {
+      await fetch(
+        `https://api.aiven.io/v1/project/${encodeURIComponent(project)}/service/${encodeURIComponent(service)}`,
+        { method: 'PUT', headers, body: JSON.stringify({ powered: true }) },
+      )
+    }
+    await new Promise((r) => setTimeout(r, 10000))
+  }
+  throw new Error(`Servicio ${service} no llegó a RUNNING a tiempo`)
+}
+
+async function ensureAivenMysqlPassword(project, service, user, headers) {
+  const { randomBytes } = await import('node:crypto')
+  const newPassword = `Colgo_${randomBytes(12).toString('base64url')}`
+  const reset = await fetch(
+    `https://api.aiven.io/v1/project/${encodeURIComponent(project)}/service/${encodeURIComponent(service)}/user/${encodeURIComponent(user)}`,
+    {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ operation: 'reset-credentials', new_password: newPassword }),
+    },
+  )
+  if (!reset.ok) {
+    const err = await reset.text()
+    throw new Error(`No se pudo configurar contraseña MySQL en Aiven: ${err.slice(0, 200)}`)
+  }
+  return newPassword
+}
+
 async function fetchAivenFromApi(token, projectName, serviceName) {
   const headers = { Authorization: `aivenv1 ${token}`, 'Content-Type': 'application/json' }
   let project = projectName
@@ -54,25 +111,35 @@ async function fetchAivenFromApi(token, projectName, serviceName) {
   const services = sdata?.services || []
   let service = serviceName
   if (!service) {
-    const mysql = services.find((s) => String(s.service_type || '').includes('mysql'))
-    if (!mysql) throw new Error(`No hay servicio MySQL en proyecto ${project}`)
-    service = mysql.service_name
+    const mysqlSvc = services.find((s) => String(s.service_type || '').includes('mysql'))
+    if (!mysqlSvc) throw new Error(`No hay servicio MySQL en proyecto ${project}`)
+    service = mysqlSvc.service_name
   }
 
-  const detail = await fetch(
-    `https://api.aiven.io/v1/project/${encodeURIComponent(project)}/service/${encodeURIComponent(service)}`,
-    { headers },
-  )
-  const info = await detail.json()
-  const mysqlInfo = info?.service?.connection_info?.mysql?.[0] || info?.connection_info?.mysql?.[0]
-  if (!mysqlInfo?.host) throw new Error('Aiven no devolvió host MySQL')
+  console.log(`  Aiven: ${project} / ${service}`)
+  const svc = await waitForAivenService(project, service, headers)
+  const mysqlInfo =
+    svc?.connection_info?.mysql?.[0] || svc?.connection_info?.mysql || null
+  const uriParams = parseServiceUriParams(svc?.service_uri_params)
+  const host = mysqlInfo?.host || uriParams?.host
+  const port = mysqlInfo?.port || uriParams?.port || 3306
+  const user = mysqlInfo?.user || uriParams?.user || 'avnadmin'
+  const database = mysqlInfo?.database || uriParams?.dbname || 'defaultdb'
+  let password = mysqlInfo?.password || uriParams?.password
+
+  if (!host) throw new Error('Aiven no devolvió host MySQL (servicio apagado o sin URI)')
+
+  if (isRedacted(password)) {
+    console.log('  Contraseña no visible en API — configurando credencial de servicio…')
+    password = await ensureAivenMysqlPassword(project, service, user, headers)
+  }
 
   return {
-    DB_HOST: mysqlInfo.host,
-    DB_PORT: String(mysqlInfo.port || 3306),
-    DB_USER: mysqlInfo.user,
-    DB_PASSWORD: mysqlInfo.password,
-    DB_NAME: mysqlInfo.database || 'defaultdb',
+    DB_HOST: host,
+    DB_PORT: String(port),
+    DB_USER: user,
+    DB_PASSWORD: password,
+    DB_NAME: database,
     DB_SSL: 'true',
     AIVEN_PROJECT: project,
     AIVEN_SERVICE: service,

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-/** Diagnóstico rápido de producción: API Render + login MARIO */
-const API = process.env.API_URL || 'https://colgo-academi-saas.onrender.com/api';
+/** Diagnóstico rápido de producción: API Vercel + login MARIO */
+const API = process.env.API_URL || 'https://project-bm9ko.vercel.app/api';
 
 async function main() {
   console.log('API:', API);
@@ -13,10 +13,9 @@ async function main() {
   console.log('Health', healthRes.status, health);
 
   if (health.db === 'error') {
-    console.error('\n❌ PROBLEMA: Render NO está conectado a MySQL.');
-    console.error('   Ve a dashboard.render.com → servicio colgo-academi-saas → Environment');
-    console.error('   Configura: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL=true');
-    console.error('   (credenciales de Aiven / MySQL en la nube)\n');
+    console.error('\n❌ PROBLEMA: la API no está conectada a MySQL (Aiven).');
+    console.error('   Ejecuta: npm run deploy:production');
+    console.error('   O revisa en Vercel → project-bm9ko → Environment: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL=true\n');
     process.exit(1);
   }
 
@@ -32,7 +31,7 @@ async function main() {
     console.log('\n✅ Login OK — MARIO / 123 funciona en producción.');
     return;
   }
-  console.error('\n❌ Login falló. Revisa logs en Render.');
+  console.error('\n❌ Login falló. Revisa logs en Vercel (Functions) o ejecuta deploy:production.');
   process.exit(1);
 }
 
