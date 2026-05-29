@@ -87,6 +87,45 @@ async function ensureMysqlColumns(tableName, cols) {
   }
 }
 
+/** DDL histórico en Aiven a veces omitió nombre/apellido en estudiantes y docentes. */
+async function ensurePersonaNombreColumns() {
+  await ensureMysqlColumns('estudiantes', [
+    ['nombre', 'VARCHAR(100) NULL'],
+    ['apellido', 'VARCHAR(100) NULL'],
+  ])
+  await ensureMysqlColumns('docentes', [
+    ['nombre', 'VARCHAR(100) NULL'],
+    ['apellido', 'VARCHAR(100) NULL'],
+  ])
+  columnNamesCache.delete('estudiantes')
+  columnNamesCache.delete('docentes')
+}
+
+async function backfillPersonaNombresVacios() {
+  try {
+    await query(
+      `UPDATE estudiantes e
+       INNER JOIN usuarios u ON u.id = e.usuario_id
+       SET e.nombre = COALESCE(NULLIF(TRIM(e.nombre), ''), SUBSTRING_INDEX(u.email, '@', 1)),
+           e.apellido = COALESCE(NULLIF(TRIM(e.apellido), ''), '—')
+       WHERE e.nombre IS NULL OR TRIM(e.nombre) = '' OR e.apellido IS NULL OR TRIM(e.apellido) = ''`,
+    )
+  } catch (e) {
+    console.warn('[COLGO] backfill estudiantes.nombre:', e?.code || e?.message || e)
+  }
+  try {
+    await query(
+      `UPDATE docentes d
+       INNER JOIN usuarios u ON u.id = d.usuario_id
+       SET d.nombre = COALESCE(NULLIF(TRIM(d.nombre), ''), SUBSTRING_INDEX(u.email, '@', 1)),
+           d.apellido = COALESCE(NULLIF(TRIM(d.apellido), ''), '—')
+       WHERE d.nombre IS NULL OR TRIM(d.nombre) = '' OR d.apellido IS NULL OR TRIM(d.apellido) = ''`,
+    )
+  } catch (e) {
+    console.warn('[COLGO] backfill docentes.nombre:', e?.code || e?.message || e)
+  }
+}
+
 /** Perfil estudiante: contacto, ubicación, documento, fechas (panel admin). */
 async function ensureEstudiantesUbicacionColumns() {
   await ensureMysqlColumns('estudiantes', [
@@ -336,6 +375,8 @@ async function ensureSupportTables() {
   }
   if (!supportTablesExtrasReady) {
     await ensureUltimoAccesoColumn()
+    await ensurePersonaNombreColumns()
+    await backfillPersonaNombresVacios()
     await ensureEstudiantesUbicacionColumns()
     await ensureDocentesExtraColumns()
     await ensureSchemaRuntime()
@@ -528,12 +569,50 @@ function normalizeMysqlDateInput(value) {
 }
 
 async function ensureEstudianteRow(usuarioId, nombre, apellido, documento) {
+  await ensurePersonaNombreColumns()
   const rows = await query('SELECT id FROM estudiantes WHERE usuario_id = ? LIMIT 1', [usuarioId])
   if (Array.isArray(rows) && rows.length > 0) return
   await query(
     'INSERT INTO estudiantes (usuario_id, nombre, apellido, documento) VALUES (?, ?, ?, ?)',
     [usuarioId, nombre || '—', apellido || '—', documento || null],
   )
+}
+
+/** Detalle admin: nombres desde JOIN o, si falla el esquema, solo desde usuarios + perfil por rol. */
+async function fetchUsuarioDetalleBase(id) {
+  await ensurePersonaNombreColumns()
+  const sql = `SELECT u.id, u.email, u.rol, u.activo,
+              COALESCE(e.nombre, d.nombre, sp.nombre, ap.nombre, '') AS nombres,
+              COALESCE(e.apellido, d.apellido, sp.apellido, ap.apellido, '') AS apellidos,
+              COALESCE(e.documento, d.documento, sp.documento, ap.documento, '') AS cedula
+       FROM usuarios u
+       LEFT JOIN estudiantes e ON e.usuario_id = u.id
+       LEFT JOIN docentes d ON d.usuario_id = u.id
+       LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
+       LEFT JOIN admin_perfiles ap ON ap.usuario_id = u.id
+       WHERE u.id = ?
+       LIMIT 1`
+  try {
+    const baseRows = await query(sql, [id])
+    if (!Array.isArray(baseRows) || baseRows.length === 0) return null
+    return { ...baseRows[0] }
+  } catch (err) {
+    if (err?.code !== 'ER_BAD_FIELD_ERROR' && err?.code !== 'ER_NO_SUCH_TABLE') throw err
+    console.warn('[usuarios] fetchUsuarioDetalleBase fallback:', err?.sqlMessage || err?.message || err)
+    const uRows = await query('SELECT id, email, rol, activo FROM usuarios WHERE id = ? LIMIT 1', [id])
+    if (!Array.isArray(uRows) || uRows.length === 0) return null
+    const u = uRows[0]
+    const local = String(u.email || '').split('@')[0] || '—'
+    return {
+      id: u.id,
+      email: u.email,
+      rol: u.rol,
+      activo: u.activo,
+      nombres: local,
+      apellidos: '—',
+      cedula: '',
+    }
+  }
 }
 
 async function ensureDocenteRow(usuarioId, nombre, apellido, documento) {
@@ -941,22 +1020,20 @@ router.get('/:id/detalle', async (req, res) => {
     if (!(await requireStaffPermission(req, res, 'gestionar_usuarios'))) return
     await ensureSupportTables()
     const includeFoto = String(req.query.foto || '') === '1'
-    const baseRows = await query(
-      `SELECT u.id, u.email, u.rol, u.activo,
-              COALESCE(e.nombre, d.nombre, sp.nombre, ap.nombre, '') AS nombres,
-              COALESCE(e.apellido, d.apellido, sp.apellido, ap.apellido, '') AS apellidos,
-              COALESCE(e.documento, d.documento, sp.documento, ap.documento, '') AS cedula
-       FROM usuarios u
-       LEFT JOIN estudiantes e ON e.usuario_id = u.id
-       LEFT JOIN docentes d ON d.usuario_id = u.id
-       LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
-       LEFT JOIN admin_perfiles ap ON ap.usuario_id = u.id
-       WHERE u.id = ?
-       LIMIT 1`,
-      [id],
-    )
-    if (!Array.isArray(baseRows) || baseRows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' })
-    const base = { ...baseRows[0] }
+    const base = await fetchUsuarioDetalleBase(id)
+    if (!base) return res.status(404).json({ error: 'Usuario no encontrado' })
+    if (String(base.rol) === 'estudiante') {
+      const seedNombre = base.nombres || String(base.email || '').split('@')[0] || '—'
+      await ensureEstudianteRow(id, seedNombre, base.apellidos || '—', base.cedula || null)
+      if (!base.nombres) {
+        const refreshed = await fetchUsuarioDetalleBase(id)
+        if (refreshed) {
+          base.nombres = refreshed.nombres
+          base.apellidos = refreshed.apellidos
+          base.cedula = refreshed.cedula || base.cedula
+        }
+      }
+    }
     if (includeFoto) {
       const foto_url = await readFotoUrlForUsuario(id)
       if (foto_url) base.foto_url = foto_url
