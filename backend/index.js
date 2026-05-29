@@ -97,8 +97,19 @@ app.use('/api/matriculas', authenticateJWT, matriculasRoutes);
 app.use('/api/academico', authenticateJWT, academicoRoutes);
 
 // Ruta de health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Backend COLGO funcionando' });
+app.get('/api/health', async (req, res) => {
+  try {
+    const { query } = await import('./db.js');
+    await query('SELECT 1 AS ok');
+    res.json({ status: 'ok', db: 'connected', message: 'Backend COLGO funcionando' });
+  } catch (e) {
+    res.status(503).json({
+      status: 'degraded',
+      db: 'error',
+      message: 'Backend activo pero base de datos no responde',
+      code: e?.code || null,
+    });
+  }
 });
 
 app.get('/api/realtime/stream', (req, res) => {
@@ -138,8 +149,16 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 async function start() {
-  await ensureSchemaRuntime();
-  await initAuthInfrastructure();
+  try {
+    await ensureSchemaRuntime();
+  } catch (e) {
+    console.error('[startup] ensureSchemaRuntime:', e?.code || e?.message || e);
+  }
+  try {
+    await initAuthInfrastructure();
+  } catch (e) {
+    console.error('[startup] initAuthInfrastructure:', e?.code || e?.message || e);
+  }
   app.listen(port, () => {
     console.log(`✓ Backend COLGO corriendo en puerto ${port}`);
     console.log(`✓ Entorno: ${process.env.NODE_ENV || 'development'}`);

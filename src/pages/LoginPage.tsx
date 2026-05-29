@@ -37,7 +37,13 @@ export function LoginPage() {
       navigate(getDashboardPathByRole(data.usuario.rol), { replace: true })
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error desconocido'
-      setError(errorMsg === 'Sesión expirada' ? 'Credenciales inválidas' : errorMsg)
+      if (errorMsg.includes('Base de datos no disponible')) {
+        setError('El servidor de datos no responde. Espera 30 segundos e intenta otra vez.')
+      } else if (errorMsg.includes('tardó demasiado')) {
+        setError('El servidor está despertando. Espera unos segundos e intenta de nuevo.')
+      } else {
+        setError(errorMsg === 'Sesión expirada' ? 'Credenciales inválidas' : errorMsg)
+      }
     } finally {
       setCargando(false)
     }

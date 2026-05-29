@@ -26,21 +26,29 @@ async function ensureUltimoAccesoColumn() {
 
 export async function initAuthInfrastructure() {
   if (authTablesReady) return;
-  await ensureUltimoAccesoColumn();
-  await query(`
-    CREATE TABLE IF NOT EXISTS actividad_usuarios (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      actor_usuario_id INT NULL,
-      actor_rol VARCHAR(30) NULL,
-      objetivo_usuario_id INT NULL,
-      accion VARCHAR(120) NOT NULL,
-      detalle TEXT NULL,
-      ip_origen VARCHAR(80) NULL,
-      fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_actividad_actor (actor_usuario_id, fecha),
-      INDEX idx_actividad_objetivo (objetivo_usuario_id, fecha)
-    )
-  `);
+  try {
+    await ensureUltimoAccesoColumn();
+  } catch (e) {
+    console.warn('[auth] ultimo_acceso:', e?.code || e?.message || e);
+  }
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS actividad_usuarios (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        actor_usuario_id INT NULL,
+        actor_rol VARCHAR(30) NULL,
+        objetivo_usuario_id INT NULL,
+        accion VARCHAR(120) NOT NULL,
+        detalle TEXT NULL,
+        ip_origen VARCHAR(80) NULL,
+        fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_actividad_actor (actor_usuario_id, fecha),
+        INDEX idx_actividad_objetivo (objetivo_usuario_id, fecha)
+      )
+    `);
+  } catch (e) {
+    console.warn('[auth] actividad_usuarios:', e?.code || e?.message || e);
+  }
   authTablesReady = true;
 }
 
@@ -167,11 +175,22 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
       return res.status(401).json({ error: 'Usuario inactivo' });
     }
 
-    if (!usuario.password_hash || typeof usuario.password_hash !== 'string') {
+    if (!usuario.password_hash) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    const passwordValid = await bcrypt.compare(passwordRaw, usuario.password_hash);
+    const hashStr = Buffer.isBuffer(usuario.password_hash)
+      ? usuario.password_hash.toString('utf8')
+      : String(usuario.password_hash);
+
+    let passwordValid = false;
+    try {
+      passwordValid = await bcrypt.compare(passwordRaw, hashStr);
+    } catch (compareErr) {
+      console.warn('[auth/login] bcrypt compare:', compareErr?.message || compareErr);
+      passwordValid = false;
+    }
+
     if (!passwordValid) {
       void logAuthActivity({
         objetivoId: Number(usuario.id),
@@ -182,7 +201,11 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    void query('UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?', [usuario.id]);
+    try {
+      await query('UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?', [usuario.id]);
+    } catch (updateErr) {
+      console.warn('[auth/login] ultimo_acceso:', updateErr?.code || updateErr?.message || updateErr);
+    }
     void logAuthActivity({
       actorId: Number(usuario.id),
       actorRol: String(usuario.rol || ''),
@@ -192,32 +215,49 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
       ip: req.ip,
     });
 
-    // Generar token JWT
-    const token = jwt.sign(
-      {
-        id: usuario.id,
-        email: usuario.email,
-        rol: usuario.rol
-      },
-      process.env.JWT_SECRET || 'tu_clave_secreta_muy_segura_aqui',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const secret = process.env.JWT_SECRET || 'tu_clave_secreta_muy_segura_aqui';
+    const expiresIn = String(process.env.JWT_EXPIRES_IN || '7d').trim() || '7d';
+    const payload = {
+      id: Number(usuario.id),
+      email: String(usuario.email || ''),
+      rol: String(usuario.rol || ''),
+    };
+    let token;
+    try {
+      token = jwt.sign(payload, secret, { expiresIn });
+    } catch (signErr) {
+      console.warn('[auth/login] jwt.sign:', signErr?.message || signErr);
+      token = jwt.sign(payload, secret, { expiresIn: '7d' });
+    }
 
     // Retornar token y datos del usuario (sin foto: se carga bajo demanda)
     res.json({
       success: true,
       token,
       usuario: {
-        id: usuario.id,
-        email: usuario.email,
-        rol: usuario.rol,
-        cambiar_password: usuario.cambiar_password,
+        id: payload.id,
+        email: payload.email,
+        rol: payload.rol,
+        cambiar_password: Boolean(usuario.cambiar_password),
         nombre_panel: nombrePanel,
       }
     });
   } catch (error) {
-    console.error('Error en login:', error);
-    res.status(500).json({ error: 'Error al iniciar sesión' });
+    console.error('Error en login:', error?.code, error?.message || error);
+    const dbCodes = new Set([
+      'ECONNREFUSED',
+      'ENOTFOUND',
+      'ETIMEDOUT',
+      'PROTOCOL_CONNECTION_LOST',
+      'ER_ACCESS_DENIED_ERROR',
+      'ER_BAD_DB_ERROR',
+    ]);
+    if (error?.code && dbCodes.has(String(error.code))) {
+      return res.status(503).json({
+        error: 'Base de datos no disponible. Espera unos segundos e intenta de nuevo.',
+      });
+    }
+    return res.status(500).json({ error: 'Error al iniciar sesión' });
   }
 });
 
