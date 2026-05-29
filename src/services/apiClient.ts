@@ -41,7 +41,8 @@ async function apiCall<T>(
   const token = skipAuth ? null : getSessionToken();
   const method = String(fetchOptions.method || 'GET').toUpperCase();
   const base = getApiBase();
-  const cacheKey = `${method}:${base}${endpoint}`;
+  const cacheScope = token ? token.slice(-16) : 'anon';
+  const cacheKey = `${method}:${cacheScope}:${base}${endpoint}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -77,9 +78,9 @@ async function apiCall<T>(
   }
 
   const isAuthFailure = response.status === 401 || response.status === 403;
-  if (isAuthFailure && token && !noSessionRedirect) {
+  if (isAuthFailure && token) {
     clearSession();
-    window.location.href = '/login';
+    invalidateCache();
     throw new Error('Sesión expirada');
   }
 
@@ -122,20 +123,26 @@ export type LoginResponse = {
 
 // ============ AUTHENTICATION ============
 export async function login(email: string, password: string) {
-  return apiCall<LoginResponse>('/auth/login', {
+  const data = await apiCall<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
     skipAuth: true,
     noSessionRedirect: true,
   });
+  invalidateCache();
+  return data;
 }
 
 export async function logout() {
   clearSession();
+  invalidateCache();
 }
 
 export async function getAuthMe() {
-  return apiCall<{ success: boolean; usuario: Record<string, unknown> }>('/auth/me');
+  return apiCall<{ success: boolean; usuario: Record<string, unknown> }>('/auth/me', {
+    noSessionRedirect: true,
+    noCache: true,
+  });
 }
 
 // ============ STUDENT ENDPOINTS ============
@@ -468,12 +475,15 @@ export async function listUsuariosAdmin(opts?: {
 }) {
   const params = new URLSearchParams()
   params.set('lite', opts?.lite === false ? '0' : '1')
+  params.set('array', '1')
   if (opts?.rol) params.set('rol', opts.rol)
   if (opts?.q?.trim()) params.set('q', opts.q.trim())
   if (opts?.page) params.set('page', String(opts.page))
   if (opts?.limit) params.set('limit', String(opts.limit))
   const qs = params.toString()
-  const data = await apiCall<UsuariosListResponse | UsuarioListaItem[]>(`/usuarios?${qs}`)
+  const data = await apiCall<UsuariosListResponse | UsuarioListaItem[]>(`/usuarios?${qs}`, {
+    noCache: true,
+  })
   if (Array.isArray(data)) return data
   return Array.isArray(data?.items) ? data.items : []
 }

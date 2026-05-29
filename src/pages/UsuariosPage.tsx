@@ -330,7 +330,6 @@ export default function UsuariosPage() {
 
   const usuariosFiltrados = usuarios.filter((u) => {
     if (!esModuloRol && filtroRol !== 'todos' && u.rol !== filtroRol) return false
-    if (esModuloRol || busqueda.trim()) return true
     return true
   })
 

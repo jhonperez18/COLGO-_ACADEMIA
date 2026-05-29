@@ -1,3 +1,5 @@
+import { invalidateCache } from '../services/apiCache'
+
 export type UserRole = 'admin' | 'estudiante' | 'docente' | 'staff'
 
 export type SessionUser = {
@@ -8,13 +10,32 @@ export type SessionUser = {
 const TOKEN_KEY = 'token'
 const USER_KEY = 'usuario'
 const SESSION_VERIFIED_KEY = 'colgo_auth_verified'
+/** Solo true tras login explícito en esta pestaña del navegador. */
+const LOGIN_SESSION_KEY = 'colgo_login_session'
 const FOTO_PREFIX = 'colgo_foto_'
+
+/** Auth en sessionStorage: al cerrar la pestaña hay que volver a iniciar sesión. */
+const authStore = (): Storage => sessionStorage
+
 let tokenCache: string | null = null
 let userCache: SessionUser | null | undefined = undefined
 
+function purgeLegacyPersistentAuth() {
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(SESSION_VERIFIED_KEY)
+    localStorage.removeItem('colgo-token')
+    localStorage.removeItem('colgo-usuario')
+  } catch {
+    /* ignore */
+  }
+}
+purgeLegacyPersistentAuth()
+
 export function isSessionVerified(): boolean {
   try {
-    return localStorage.getItem(SESSION_VERIFIED_KEY) === '1'
+    return authStore().getItem(SESSION_VERIFIED_KEY) === '1'
   } catch {
     return false
   }
@@ -22,7 +43,7 @@ export function isSessionVerified(): boolean {
 
 export function markSessionVerified(): void {
   try {
-    localStorage.setItem(SESSION_VERIFIED_KEY, '1')
+    authStore().setItem(SESSION_VERIFIED_KEY, '1')
   } catch {
     /* ignore */
   }
@@ -30,7 +51,7 @@ export function markSessionVerified(): void {
 
 function clearSessionVerified(): void {
   try {
-    localStorage.removeItem(SESSION_VERIFIED_KEY)
+    authStore().removeItem(SESSION_VERIFIED_KEY)
   } catch {
     /* ignore */
   }
@@ -89,9 +110,10 @@ function hasTokenUserMismatch(token: string, user: SessionUser): boolean {
 
 function hydrateFromStorage() {
   if (userCache !== undefined) return
-  const token = localStorage.getItem(TOKEN_KEY)
-  const usuario = localStorage.getItem(USER_KEY)
-  if (!token || !usuario) {
+  const store = authStore()
+  const token = store.getItem(TOKEN_KEY)
+  const usuario = store.getItem(USER_KEY)
+  if (!token || !usuario || store.getItem(LOGIN_SESSION_KEY) !== '1') {
     tokenCache = null
     userCache = null
     return
@@ -104,11 +126,7 @@ function hydrateFromStorage() {
       return
     }
     if (hasTokenUserMismatch(token, parsed)) {
-      tokenCache = null
-      userCache = null
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem(USER_KEY)
-      clearSessionVerified()
+      clearSession()
       return
     }
     tokenCache = token
@@ -133,28 +151,39 @@ export function persistSession(token: string, usuario: SessionUser): void {
   const usuarioGuardado = { ...usuario }
   delete (usuarioGuardado as Record<string, unknown>).foto_url
 
+  const store = authStore()
   tokenCache = token
   userCache = usuarioGuardado
-  localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(USER_KEY, JSON.stringify(usuarioGuardado))
+  store.setItem(TOKEN_KEY, token)
+  store.setItem(USER_KEY, JSON.stringify(usuarioGuardado))
+  store.setItem(LOGIN_SESSION_KEY, '1')
   storeProfilePhoto(userId as number | string | undefined, foto)
   markSessionVerified()
+  invalidateCache()
 }
 
 export function clearSession(): void {
   tokenCache = null
   userCache = null
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(USER_KEY)
+  const store = authStore()
+  store.removeItem(TOKEN_KEY)
+  store.removeItem(USER_KEY)
+  store.removeItem(LOGIN_SESSION_KEY)
   clearSessionVerified()
+  invalidateCache()
 }
 
-/** Sesión local válida: JWT + usuario + no expirado. */
+/** Sesión válida solo si hubo login explícito en esta pestaña y el JWT no expiró. */
 export function hasValidLocalSession(): boolean {
   const token = getSessionToken()
   const user = loadSessionUser()
   if (!token || !user) return false
   if (token === 'auth-token') return false
+  try {
+    if (authStore().getItem(LOGIN_SESSION_KEY) !== '1') return false
+  } catch {
+    return false
+  }
   return true
 }
 

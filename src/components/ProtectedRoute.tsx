@@ -4,7 +4,6 @@ import { ensureServerSession } from '../services/authVerify'
 import {
   getDashboardPathByRole,
   hasValidLocalSession,
-  isSessionVerified,
   loadSessionUser,
   type UserRole,
 } from '../state/authSession'
@@ -14,25 +13,50 @@ interface ProtectedRouteProps {
   rol?: UserRole
 }
 
+type GateState = 'checking' | 'allowed' | 'denied'
+
 export function ProtectedRoute({ children, rol }: ProtectedRouteProps) {
   const location = useLocation()
-  const usuario = hasValidLocalSession() ? loadSessionUser() : null
-  const [denegado, setDenegado] = useState(false)
+  const [gate, setGate] = useState<GateState>(() =>
+    hasValidLocalSession() ? 'checking' : 'denied',
+  )
 
   useEffect(() => {
-    if (!usuario) return
-    if (isSessionVerified()) return
+    if (!hasValidLocalSession()) {
+      setGate('denied')
+      return
+    }
+
     let cancelado = false
+    setGate('checking')
+
     void ensureServerSession().then((ok) => {
-      if (!cancelado && !ok) setDenegado(true)
+      if (!cancelado) setGate(ok ? 'allowed' : 'denied')
     })
+
     return () => {
       cancelado = true
     }
-  }, [usuario?.id])
+  }, [])
 
-  if (!usuario || denegado) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (gate === 'checking') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
+        <p className="text-sm text-[var(--muted)]">Verificando sesión…</p>
+      </div>
+    )
+  }
+
+  const usuario = loadSessionUser()
+
+  if (gate === 'denied' || !usuario) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location.pathname + location.search }}
+      />
+    )
   }
 
   if (location.pathname === '/actualizar-password' && !usuario.cambiar_password) {

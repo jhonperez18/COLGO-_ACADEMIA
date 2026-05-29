@@ -117,8 +117,8 @@ function App() {
       {/* Raíz: siempre pantalla de credenciales (limpia sesión local vía LoginPage + force_login) */}
       <Route path="/" element={<Navigate to="/login?force_login=1" replace />} />
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/login" />} />
+      {/* Fallback: siempre login */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

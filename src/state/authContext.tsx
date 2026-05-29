@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 function getSessionTokenIsMock(): boolean {
   try {
-    return localStorage.getItem('token') === 'auth-token'
+    return sessionStorage.getItem('token') === 'auth-token'
   } catch {
     return false
   }

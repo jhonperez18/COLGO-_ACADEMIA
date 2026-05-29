@@ -8,7 +8,7 @@ import {
 
 let verifyPromise: Promise<boolean> | null = null
 
-/** Una sola validación remota por pestaña; el resto usa JWT local. */
+/** Valida el JWT con el servidor antes de mostrar rutas protegidas. */
 export async function ensureServerSession(): Promise<boolean> {
   if (!hasValidLocalSession()) {
     clearSession()

@@ -726,8 +726,12 @@ router.get('/', async (req, res) => {
       }
     }
 
-    res.json({
-      items: Array.isArray(usuarios) ? usuarios : [],
+    const list = Array.isArray(usuarios) ? usuarios : []
+    if (String(req.query.array || '') === '1') {
+      return res.json(list)
+    }
+    return res.json({
+      items: list,
       page,
       limit,
       total,

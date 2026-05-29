@@ -4,7 +4,6 @@ import { Button } from '../components/common/Button'
 import { getApiBase, login } from '../services/apiClient'
 import { resolveApiBaseUrl } from '../config/apiBaseUrl'
 import {
-  clearSession,
   getDashboardPathByRole,
   hasValidLocalSession,
   loadSessionUser,
@@ -30,11 +29,14 @@ export function LoginPage() {
 
     setCargando(true)
     try {
-      // Realizar login con el backend
       const data = await login(email.trim(), password)
-
       persistSession(data.token, data.usuario)
-      navigate(getDashboardPathByRole(data.usuario.rol), { replace: true })
+      const from = (location.state as { from?: string } | null)?.from
+      const destino =
+        from && from !== '/login' && !from.startsWith('/login?')
+          ? from
+          : getDashboardPathByRole(data.usuario.rol)
+      navigate(destino, { replace: true })
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error desconocido'
       if (errorMsg.includes('Base de datos no disponible')) {
@@ -49,26 +51,21 @@ export function LoginPage() {
     }
   }
 
-  const forceLogin = new URLSearchParams(location.search).get('force_login') === '1'
-
-  // Despertar el servidor (Render) mientras el usuario escribe credenciales
   useEffect(() => {
     void fetch(`${getApiBase()}/health`, { method: 'GET' }).catch(() => {})
   }, [])
 
-  // Solo redirige al panel si ya inició sesión en esta pestaña; ?force_login=1 siempre pide credenciales.
   useEffect(() => {
-    if (forceLogin) {
-      clearSession()
-      return
-    }
-    if (hasValidLocalSession()) {
-      const usuario = loadSessionUser()
-      if (usuario) {
-        navigate(getDashboardPathByRole(usuario.rol), { replace: true })
-      }
-    }
-  }, [forceLogin, navigate])
+    if (!hasValidLocalSession()) return
+    const usuario = loadSessionUser()
+    if (!usuario) return
+    const from = (location.state as { from?: string } | null)?.from
+    const destino =
+      from && from !== '/login' && !from.startsWith('/login?')
+        ? from
+        : getDashboardPathByRole(usuario.rol)
+    navigate(destino, { replace: true })
+  }, [location.state, navigate])
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
@@ -91,12 +88,12 @@ export function LoginPage() {
                   <p><span className="font-semibold text-[#fbbf24]">Admin demo:</span></p>
                   <p className="ml-2">Usuario: MARIO</p>
                   <p className="ml-2">Contraseña: 123</p>
-                  
+
                   <p className="mt-3"><span className="font-semibold text-[#fbbf24]">Usuarios nuevos (docente/estudiante):</span></p>
                   <p className="ml-2">Usuario: cédula</p>
                   <p className="ml-2">Contraseña inicial: cédula</p>
-                  
-                  <p className="mt-3 text-[#fbbf24]">✓ Ingresa con usuario y clave desde este panel</p>
+
+                  <p className="mt-3 text-[#fbbf24]">✓ Debes iniciar sesión cada vez que abras la aplicación</p>
                 </div>
               </div>
             </div>
@@ -127,6 +124,7 @@ export function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="correo@colgo.edu o número de cédula"
                   type="text"
+                  autoComplete="username"
                   disabled={cargando}
                   className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--panel)] px-4 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] disabled:opacity-50"
                 />
@@ -138,15 +136,16 @@ export function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   type="password"
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   disabled={cargando}
                   className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--panel)] px-4 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] disabled:opacity-50"
                 />
               </label>
 
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full"
                 variant="primary"
                 disabled={cargando}
               >
