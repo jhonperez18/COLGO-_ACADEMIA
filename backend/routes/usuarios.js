@@ -10,9 +10,10 @@ const router = express.Router()
 const ROLES = ['admin', 'estudiante', 'docente', 'staff']
 const MAX_FOTO_CHARS = 800000
 let supportTablesReady = false
+let supportTablesExtrasReady = false
+const columnNamesCache = new Map()
 
 async function readFotoUrlForUsuario(usuarioId) {
-  await ensureSchemaRuntime()
   try {
     const rows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [usuarioId])
     if (!Array.isArray(rows) || !rows[0] || rows[0].foto_url == null || rows[0].foto_url === '') {
@@ -26,7 +27,6 @@ async function readFotoUrlForUsuario(usuarioId) {
 }
 
 async function saveFotoUrlForUsuario(usuarioId, foto_url) {
-  await ensureSchemaRuntime()
   const raw = foto_url == null || foto_url === '' ? null : String(foto_url)
   if (raw && raw.length > MAX_FOTO_CHARS) {
     const err = new Error('FOTO_TOO_LARGE')
@@ -144,17 +144,20 @@ async function ensureAdminProfileTable() {
 }
 
 async function getExistingColumnNames(tableName) {
+  const key = String(tableName || '').toLowerCase()
+  if (columnNamesCache.has(key)) return columnNamesCache.get(key)
   const rows = await query(
     `SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?)`,
     [tableName],
   )
-  if (!Array.isArray(rows)) return new Set()
-  return new Set(
-    rows
+  const set = new Set(
+    (Array.isArray(rows) ? rows : [])
       .map((r) => String(r.c ?? r.C ?? r.COLUMN_NAME ?? '').trim())
       .filter(Boolean),
   )
+  columnNamesCache.set(key, set)
+  return set
 }
 
 /** SELECT de perfil estudiante solo con columnas que existan (evita 500 si migración a medias). */
@@ -331,10 +334,23 @@ async function ensureSupportTables() {
       console.warn('[COLGO] ALTER usuarios.rol omitido (datos o motor incompatibles):', e?.code || e?.errno || e?.message || e)
     }
   }
-  await ensureUltimoAccesoColumn()
-  await ensureEstudiantesUbicacionColumns()
-  await ensureDocentesExtraColumns()
-  await ensureSchemaRuntime()
+  if (!supportTablesExtrasReady) {
+    await ensureUltimoAccesoColumn()
+    await ensureEstudiantesUbicacionColumns()
+    await ensureDocentesExtraColumns()
+    await ensureSchemaRuntime()
+    try {
+      await query('CREATE INDEX IF NOT EXISTS idx_usuarios_rol_id ON usuarios (rol, id)')
+      await query('CREATE INDEX IF NOT EXISTS idx_estudiantes_usuario ON estudiantes (usuario_id)')
+      await query('CREATE INDEX IF NOT EXISTS idx_docentes_usuario ON docentes (usuario_id)')
+      await query('CREATE INDEX IF NOT EXISTS idx_matriculas_estudiante_estado ON matriculas (estudiante_id, estado)')
+      await query('CREATE INDEX IF NOT EXISTS idx_cursos_docente ON cursos (docente_id)')
+      await query('CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_fecha ON notificaciones (usuario_id, fecha_creacion)')
+    } catch (e) {
+      console.warn('[COLGO] índices de rendimiento (no crítico):', e?.code || e?.message || e)
+    }
+    supportTablesExtrasReady = true
+  }
 }
 
 async function logActividad({ actorId = null, actorRol = null, objetivoId = null, accion, detalle = null, ip = null }) {
@@ -590,27 +606,46 @@ async function existeDocumentoGlobal(documento) {
 }
 
 /**
- * GET /api/usuarios — listado (solo admin)
+ * GET /api/usuarios — listado paginado (admin/staff)
+ * Query: rol, q, page, limit, lite=1 (sin GROUP_CONCAT de cursos)
  */
 router.get('/', async (req, res) => {
   try {
     if (!(await requireStaffPermission(req, res, 'gestionar_usuarios'))) return
     await ensureSupportTables()
-    let usuarios
-    try {
-      usuarios = await query(`
-        SELECT u.id, u.email, u.rol, u.activo, u.ultimo_acceso, NULL AS fecha_creacion,
-          e.id AS estudiante_id,
-          d.id AS docente_id,
-          COALESCE(
-            TRIM(CONCAT(e.nombre, ' ', e.apellido)),
-            TRIM(CONCAT(d.nombre, ' ', d.apellido)),
-            TRIM(CONCAT(sp.nombre, ' ', sp.apellido)),
-            TRIM(CONCAT(ap.nombre, ' ', ap.apellido)),
-            u.email
-          ) AS nombre_completo,
-          COALESCE(e.documento, d.documento, sp.documento, ap.documento) AS documento,
-          CASE
+
+    const rolFilter = String(req.query.rol || '').trim().toLowerCase()
+    const q = String(req.query.q || '').trim()
+    const lite = ['1', 'true', 'yes'].includes(String(req.query.lite || '1').trim().toLowerCase())
+    const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1)
+    const limitRaw = Number.parseInt(String(req.query.limit || '500'), 10) || 500
+    const limit = Math.min(500, Math.max(10, limitRaw))
+    const offset = (page - 1) * limit
+
+    const where = []
+    const params = []
+    if (rolFilter && ROLES.includes(rolFilter)) {
+      where.push('u.rol = ?')
+      params.push(rolFilter)
+    }
+    if (q) {
+      const like = `%${q}%`
+      where.push(`(
+        u.email LIKE ?
+        OR COALESCE(e.documento, d.documento, sp.documento, ap.documento, '') LIKE ?
+        OR TRIM(CONCAT(
+          COALESCE(e.nombre, d.nombre, sp.nombre, ap.nombre, ''),
+          ' ',
+          COALESCE(e.apellido, d.apellido, sp.apellido, ap.apellido, '')
+        )) LIKE ?
+      )`)
+      params.push(like, like, like)
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const cursosExpr = lite
+      ? 'NULL AS cursos_asignados'
+      : `CASE
             WHEN u.rol = 'docente' THEN (
               SELECT GROUP_CONCAT(c.nombre ORDER BY c.nombre SEPARATOR ', ')
               FROM cursos c
@@ -623,7 +658,24 @@ router.get('/', async (req, res) => {
               WHERE m.estudiante_id = e.id AND m.estado = 'activa'
             )
             ELSE NULL
-          END AS cursos_asignados,
+          END`
+
+    let usuarios
+    try {
+      usuarios = await query(
+        `
+        SELECT u.id, u.email, u.rol, u.activo, u.ultimo_acceso, NULL AS fecha_creacion,
+          e.id AS estudiante_id,
+          d.id AS docente_id,
+          COALESCE(
+            TRIM(CONCAT(e.nombre, ' ', e.apellido)),
+            TRIM(CONCAT(d.nombre, ' ', d.apellido)),
+            TRIM(CONCAT(sp.nombre, ' ', sp.apellido)),
+            TRIM(CONCAT(ap.nombre, ' ', ap.apellido)),
+            u.email
+          ) AS nombre_completo,
+          COALESCE(e.documento, d.documento, sp.documento, ap.documento) AS documento,
+          ${cursosExpr} AS cursos_asignados,
           COALESCE(up.nivel_confianza, 'baja') AS nivel_confianza
         FROM usuarios u
         LEFT JOIN estudiantes e ON e.usuario_id = u.id
@@ -631,19 +683,56 @@ router.get('/', async (req, res) => {
         LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
         LEFT JOIN admin_perfiles ap ON ap.usuario_id = u.id
         LEFT JOIN usuario_permisos up ON up.usuario_id = u.id
+        ${whereSql}
         ORDER BY u.id DESC
-      `)
+        LIMIT ? OFFSET ?
+      `,
+        [...params, limit, offset],
+      )
     } catch {
-      usuarios = await query(`
+      usuarios = await query(
+        `
         SELECT u.id, u.email, u.rol, u.activo, NULL AS ultimo_acceso, NULL AS fecha_creacion,
                NULL AS estudiante_id, NULL AS docente_id,
                u.email AS nombre_completo, NULL AS documento,
                NULL AS cursos_asignados, 'baja' AS nivel_confianza
         FROM usuarios u
+        ${whereSql}
         ORDER BY u.id DESC
-      `)
+        LIMIT ? OFFSET ?
+      `,
+        [...params, limit, offset],
+      )
     }
-    res.json(usuarios)
+
+    let total = Array.isArray(usuarios) ? usuarios.length : 0
+    if (page === 1 || q || rolFilter) {
+      try {
+        const countRows = await query(
+          `
+          SELECT COUNT(*) AS total
+          FROM usuarios u
+          LEFT JOIN estudiantes e ON e.usuario_id = u.id
+          LEFT JOIN docentes d ON d.usuario_id = u.id
+          LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
+          LEFT JOIN admin_perfiles ap ON ap.usuario_id = u.id
+          ${whereSql}
+        `,
+          params,
+        )
+        total = Number(countRows?.[0]?.total || total)
+      } catch {
+        // omitir total si falla el conteo
+      }
+    }
+
+    res.json({
+      items: Array.isArray(usuarios) ? usuarios : [],
+      page,
+      limit,
+      total,
+      hasMore: page * limit < total,
+    })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Error al obtener usuarios' })
@@ -847,8 +936,9 @@ router.get('/:id/detalle', async (req, res) => {
   try {
     if (!(await requireStaffPermission(req, res, 'gestionar_usuarios'))) return
     await ensureSupportTables()
+    const includeFoto = String(req.query.foto || '') === '1'
     const baseRows = await query(
-      `SELECT u.id, u.email, u.rol, u.activo, u.foto_url,
+      `SELECT u.id, u.email, u.rol, u.activo,
               COALESCE(e.nombre, d.nombre, sp.nombre, ap.nombre, '') AS nombres,
               COALESCE(e.apellido, d.apellido, sp.apellido, ap.apellido, '') AS apellidos,
               COALESCE(e.documento, d.documento, sp.documento, ap.documento, '') AS cedula
@@ -863,11 +953,10 @@ router.get('/:id/detalle', async (req, res) => {
     )
     if (!Array.isArray(baseRows) || baseRows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' })
     const base = { ...baseRows[0] }
-    if (Object.prototype.hasOwnProperty.call(base, 'foto_url')) {
-      const fv = base.foto_url
-      if (fv == null || fv === '') base.foto_url = null
-      else if (Buffer.isBuffer(fv)) base.foto_url = fv.toString('utf8')
-      else base.foto_url = String(fv)
+    if (includeFoto) {
+      const foto_url = await readFotoUrlForUsuario(id)
+      if (foto_url) base.foto_url = foto_url
+      else base.foto_url = null
     }
     let perfil = {}
     if (String(base.rol) === 'estudiante') {

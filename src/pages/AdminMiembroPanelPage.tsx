@@ -36,7 +36,6 @@ import {
   getUsuarioPermisosAdmin,
   getUsuariosCursosDisponibles,
   inscribirEstudiantesCurso,
-  listUsuariosAdmin,
   resendUsuarioWelcomeEmail,
   resetUsuarioPasswordAdmin,
   toggleUsuarioActivo,
@@ -252,6 +251,39 @@ export default function AdminMiembroPanelPage() {
       })
     }
 
+  const aplicarDetalleEnFormulario = useCallback((detalle: UsuarioDetalleAdmin) => {
+    const d = detalle as UsuarioDetalleAdmin & Record<string, unknown>
+    const nombres = String(detalle.nombres || '')
+    const apellidos = String(detalle.apellidos || '')
+    setListaItem({
+      id: Number(detalle.id),
+      email: String(detalle.email || ''),
+      rol: detalle.rol,
+      activo: Boolean(detalle.activo),
+      nombre_completo: `${nombres} ${apellidos}`.trim() || String(detalle.email || ''),
+      documento: String(detalle.cedula || ''),
+      nivel_confianza: 'baja',
+    })
+    setFormEditar({
+      nombres,
+      apellidos,
+      cedula: String(detalle.cedula || ''),
+      email: String(detalle.email || ''),
+      activo: Boolean(detalle.activo),
+      rol: detalle.rol,
+      telefono: String(detalle.telefono || ''),
+      direccion: String(d.direccion || ''),
+      ciudad: String(d.ciudad || ''),
+      pais: String(d.pais || ''),
+      departamento: String(d.departamento || ''),
+      municipio: String(d.municipio || ''),
+      fecha_nacimiento: toHtmlDateInputValue(d.fecha_nacimiento),
+      estado_civil: String(d.estado_civil || ''),
+      especialidad: String(d.especialidad || ''),
+      tipoDocumento: String(d.tipo_documento || ''),
+    })
+  }, [])
+
   const cargar = useCallback(async () => {
     if (!idValid) {
       setError('ID de miembro inválido.')
@@ -259,103 +291,97 @@ export default function AdminMiembroPanelPage() {
       return
     }
     setCargando(true)
+    setCargandoDetalle(true)
     setError(null)
+    setActividad([])
+    setCursosAsignables([])
+    setCursoAsignacionIds([])
+    setPasswordTemporal(null)
+    setFotoPerfil('')
+
     try {
-      const [lista, cursosData] = await Promise.all([listUsuariosAdmin(), getUsuariosCursosDisponibles()])
-      const arr = Array.isArray(lista) ? lista : []
-      const u = arr.find((x) => x.id === id) || null
-      if (!u) {
-        setListaItem(null)
-        setError('Usuario no encontrado o sin permisos para verlo.')
-        setCargando(false)
-        return
-      }
-      setListaItem(u)
-      const cursos = Array.isArray(cursosData) ? cursosData : []
-      setCursosAsignables(
-        cursos
-          .filter((c) => c?.activo !== false && String(c?.docente || '').trim())
-          .map((c) => ({
-            id: Number(c.id),
-            nombre: String(c.nombre || ''),
-            codigo: String(c.codigo || ''),
-            docente: c.docente ? String(c.docente) : null,
-          })),
-      )
-      setCursoAsignacionIds([])
-      setPasswordTemporal(null)
+      const detalle = await getUsuarioDetalleAdmin(id)
+      aplicarDetalleEnFormulario(detalle)
+      setCargando(false)
+      setCargandoDetalle(false)
 
-      setCargandoDetalle(true)
-      try {
-        const detalle = await getUsuarioDetalleAdmin(u.id)
-        const d = detalle as UsuarioDetalleAdmin
-        setFormEditar({
-          nombres: String(detalle.nombres || ''),
-          apellidos: String(detalle.apellidos || ''),
-          cedula: String(detalle.cedula || ''),
-          email: String(detalle.email || ''),
-          activo: Boolean(detalle.activo),
-          rol: detalle.rol,
-          telefono: String(detalle.telefono || ''),
-          direccion: String(d.direccion || ''),
-          ciudad: String(d.ciudad || ''),
-          pais: String(d.pais || ''),
-          departamento: String(d.departamento || ''),
-          municipio: String(d.municipio || ''),
-          fecha_nacimiento: toHtmlDateInputValue(d.fecha_nacimiento),
-          estado_civil: String(d.estado_civil || ''),
-          especialidad: String(d.especialidad || ''),
-          tipoDocumento: String(d.tipo_documento || ''),
+      void getUsuarioDetalleAdmin(id, { includeFoto: true })
+        .then((conFoto) => {
+          const raw = (conFoto as Record<string, unknown>)['foto_url']
+          if (typeof raw === 'string' && raw.length > 0) setFotoPerfil(raw)
         })
-        {
-          const raw = (detalle as Record<string, unknown>)['foto_url']
-          setFotoPerfil(typeof raw === 'string' && raw.length > 0 ? raw : '')
-        }
-        if (u.rol === 'staff' && viewerRol === 'admin') {
-          const permisos = await getUsuarioPermisosAdmin(u.id)
-          setFormPermisos(permisos)
-        }
-      } catch {
-        const nombresBase = String(u.nombre_completo || '').split(' ')
-        setFormEditar({
-          nombres: nombresBase.slice(0, 1).join(' ') || '',
-          apellidos: nombresBase.slice(1).join(' ') || '',
-          cedula: String(u.documento || ''),
-          email: String(u.email || ''),
-          activo: Boolean(u.activo),
-          rol: u.rol,
-          telefono: '',
-          direccion: '',
-          ciudad: '',
-          pais: '',
-          departamento: '',
-          municipio: '',
-          fecha_nacimiento: '',
-          estado_civil: '',
-          especialidad: '',
-          tipoDocumento: '',
-        })
-        setFotoPerfil('')
-      } finally {
-        setCargandoDetalle(false)
-      }
-
-      setCargandoActividad(true)
-      try {
-        const act = await getUsuarioActividadAdmin(u.id)
-        setActividad(Array.isArray(act) ? act : [])
-      } catch {
-        setActividad([])
-      } finally {
-        setCargandoActividad(false)
-      }
+        .catch(() => {})
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cargar el miembro')
       setListaItem(null)
-    } finally {
       setCargando(false)
+      setCargandoDetalle(false)
     }
-  }, [id, idValid])
+  }, [id, idValid, aplicarDetalleEnFormulario])
+
+  useEffect(() => {
+    if (!listaItem || tab !== 'cursos') return
+    if (listaItem.rol !== 'docente' && listaItem.rol !== 'estudiante') return
+    if (cursosAsignables.length > 0) return
+    let cancel = false
+    void (async () => {
+      try {
+        const cursosData = await getUsuariosCursosDisponibles()
+        if (cancel) return
+        const cursos = Array.isArray(cursosData) ? cursosData : []
+        setCursosAsignables(
+          cursos
+            .filter((c) => c?.activo !== false && String(c?.docente || '').trim())
+            .map((c) => ({
+              id: Number(c.id),
+              nombre: String(c.nombre || ''),
+              codigo: String(c.codigo || ''),
+              docente: c.docente ? String(c.docente) : null,
+            })),
+        )
+      } catch {
+        if (!cancel) setCursosAsignables([])
+      }
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [tab, listaItem, cursosAsignables.length])
+
+  useEffect(() => {
+    if (!listaItem || tab !== 'actividad') return
+    let cancel = false
+    setCargandoActividad(true)
+    void (async () => {
+      try {
+        const act = await getUsuarioActividadAdmin(listaItem.id)
+        if (!cancel) setActividad(Array.isArray(act) ? act : [])
+      } catch {
+        if (!cancel) setActividad([])
+      } finally {
+        if (!cancel) setCargandoActividad(false)
+      }
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [tab, listaItem])
+
+  useEffect(() => {
+    if (!listaItem || tab !== 'staff' || listaItem.rol !== 'staff' || viewerRol !== 'admin') return
+    let cancel = false
+    void (async () => {
+      try {
+        const permisos = await getUsuarioPermisosAdmin(listaItem.id)
+        if (!cancel) setFormPermisos(permisos)
+      } catch {
+        // mantener preset por defecto
+      }
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [tab, listaItem, viewerRol])
 
   useEffect(() => {
     void cargar()

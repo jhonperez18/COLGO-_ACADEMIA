@@ -108,29 +108,60 @@ export default function UsuariosPage() {
     navigate(`${panelBase}/miembros/${u.id}?return=${ret}&origen=${origenLista}`)
   }
 
-  const cargar = useCallback(async () => {
-    setCargando(true)
-    setErrorLista(null)
-    try {
-      const [data, logsData, anomaliasData] = await Promise.all([
-        listUsuariosAdmin(),
-        listLogsAdmin(),
-        getUsuariosAnomaliasSeguridad(),
-      ])
-      setUsuarios(Array.isArray(data) ? data : [])
-      setLogs(Array.isArray(logsData) ? logsData : [])
-      setAnomalias(Array.isArray(anomaliasData) ? anomaliasData : [])
-    } catch (e) {
-      setErrorLista(e instanceof Error ? e.message : 'No se pudo cargar la lista')
-      setUsuarios([])
-    } finally {
-      setCargando(false)
-    }
-  }, [])
+  const rolFiltroApi: RolApi | undefined =
+    vistaActiva === 'admin' || vistaActiva === 'docente' || vistaActiva === 'estudiante' || vistaActiva === 'staff'
+      ? vistaActiva
+      : undefined
+
+  const cargar = useCallback(
+    async (terminoBusqueda?: string) => {
+      setCargando(true)
+      setErrorLista(null)
+      try {
+        const data = await listUsuariosAdmin({
+          rol: rolFiltroApi,
+          q: terminoBusqueda?.trim() || undefined,
+          lite: true,
+          limit: 500,
+        })
+        setUsuarios(Array.isArray(data) ? data : [])
+      } catch (e) {
+        setErrorLista(e instanceof Error ? e.message : 'No se pudo cargar la lista')
+        setUsuarios([])
+      } finally {
+        setCargando(false)
+      }
+    },
+    [rolFiltroApi],
+  )
 
   useEffect(() => {
-    void cargar()
-  }, [cargar])
+    const timer = window.setTimeout(() => {
+      void cargar(busqueda)
+    }, busqueda.trim() ? 280 : 0)
+    return () => window.clearTimeout(timer)
+  }, [cargar, busqueda, vistaActiva])
+
+  useEffect(() => {
+    if (esModuloRol) return
+    let cancel = false
+    void (async () => {
+      try {
+        const [logsData, anomaliasData] = await Promise.all([listLogsAdmin(), getUsuariosAnomaliasSeguridad()])
+        if (cancel) return
+        setLogs(Array.isArray(logsData) ? logsData : [])
+        setAnomalias(Array.isArray(anomaliasData) ? anomaliasData : [])
+      } catch {
+        if (!cancel) {
+          setLogs([])
+          setAnomalias([])
+        }
+      }
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [esModuloRol])
 
   const onChange =
     (name: keyof FormState) =>
@@ -223,7 +254,7 @@ export default function UsuariosPage() {
         }
         setForm(formVacio)
         setShowCreateModal(false)
-        await cargar()
+        await cargar(busqueda)
       } catch (err) {
         setErrorForm(err instanceof Error ? err.message : 'Error al crear usuario')
       } finally {
@@ -278,7 +309,7 @@ export default function UsuariosPage() {
                         try {
                           await deleteUsuarioAdmin(u.id)
                           setMensajeExito('Usuario eliminado.')
-                          await cargar()
+                          await cargar(busqueda)
                         } catch (e) {
                           setErrorLista(e instanceof Error ? e.message : 'No se pudo eliminar')
                         } finally {
@@ -298,15 +329,9 @@ export default function UsuariosPage() {
   ]
 
   const usuariosFiltrados = usuarios.filter((u) => {
-    const filtro = vistaActiva === 'staff' ? 'staff' : vistaActiva
-    if (filtro !== 'todos' && u.rol !== filtro) return false
-    const q = busqueda.trim().toLowerCase()
-    if (!q) return true
-    return (
-      String(u.nombre_completo ?? '').toLowerCase().includes(q) ||
-      String(u.documento ?? '').toLowerCase().includes(q) ||
-      String(u.email ?? '').toLowerCase().includes(q)
-    )
+    if (!esModuloRol && filtroRol !== 'todos' && u.rol !== filtroRol) return false
+    if (esModuloRol || busqueda.trim()) return true
+    return true
   })
 
   return (

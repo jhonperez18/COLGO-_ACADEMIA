@@ -451,8 +451,57 @@ export type ActividadUsuario = {
   fecha: string;
 };
 
-export async function listUsuariosAdmin() {
-  return apiCall<UsuarioListaItem[]>('/usuarios');
+export type UsuariosListResponse = {
+  items: UsuarioListaItem[]
+  page: number
+  limit: number
+  total: number
+  hasMore?: boolean
+}
+
+export async function listUsuariosAdmin(opts?: {
+  rol?: RolApi
+  q?: string
+  page?: number
+  limit?: number
+  lite?: boolean
+}) {
+  const params = new URLSearchParams()
+  params.set('lite', opts?.lite === false ? '0' : '1')
+  if (opts?.rol) params.set('rol', opts.rol)
+  if (opts?.q?.trim()) params.set('q', opts.q.trim())
+  if (opts?.page) params.set('page', String(opts.page))
+  if (opts?.limit) params.set('limit', String(opts.limit))
+  const qs = params.toString()
+  const data = await apiCall<UsuariosListResponse | UsuarioListaItem[]>(`/usuarios?${qs}`)
+  if (Array.isArray(data)) return data
+  return Array.isArray(data?.items) ? data.items : []
+}
+
+export async function listUsuariosAdminPaged(opts?: {
+  rol?: RolApi
+  q?: string
+  page?: number
+  limit?: number
+  lite?: boolean
+}) {
+  const params = new URLSearchParams()
+  params.set('lite', opts?.lite === false ? '0' : '1')
+  if (opts?.rol) params.set('rol', opts.rol)
+  if (opts?.q?.trim()) params.set('q', opts.q.trim())
+  params.set('page', String(opts?.page || 1))
+  params.set('limit', String(opts?.limit || 100))
+  const data = await apiCall<UsuariosListResponse | UsuarioListaItem[]>(`/usuarios?${params.toString()}`)
+  if (Array.isArray(data)) {
+    return { items: data, page: 1, limit: data.length, total: data.length, hasMore: false }
+  }
+  return {
+    items: Array.isArray(data?.items) ? data.items : [],
+    page: Number(data?.page || 1),
+    limit: Number(data?.limit || 100),
+    total: Number(data?.total || 0),
+    hasMore: Boolean(data?.hasMore),
+  }
 }
 
 export async function getUsuariosCursosDisponibles() {
@@ -514,8 +563,9 @@ export async function updateUsuarioAdmin(
   });
 }
 
-export async function getUsuarioDetalleAdmin(id: number) {
-  return apiCall<UsuarioDetalleAdmin>(`/usuarios/${id}/detalle`);
+export async function getUsuarioDetalleAdmin(id: number, opts?: { includeFoto?: boolean }) {
+  const q = opts?.includeFoto ? '?foto=1' : ''
+  return apiCall<UsuarioDetalleAdmin>(`/usuarios/${id}/detalle${q}`)
 }
 
 export async function getUsuarioPermisosAdmin(id: number) {
