@@ -39,7 +39,7 @@ export default function DashboardLayout() {
         best = { label: item.label, len: base.length }
       }
     }
-    return best?.label ?? 'Panel'
+    return best?.label ?? 'Inicio'
   }, [location.pathname, navItems])
 
   return (

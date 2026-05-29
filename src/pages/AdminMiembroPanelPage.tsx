@@ -12,7 +12,12 @@ import { Activity, BookOpen, ExternalLink, LayoutDashboard, Lock, Mail, Shield, 
 import { Button } from '../components/common/Button'
 import { Card } from '../components/common/Card'
 import { ColgoBrandBlock } from '../components/layout/ColgoBrandBlock'
-import { SidebarNavButton } from '../components/layout/SidebarNavButton'
+import {
+  SIDEBAR_NAV_ICON_SIZE,
+  SIDEBAR_NAV_LIST_CLASS,
+  SIDEBAR_SECTION_LABEL_CLASS,
+  SidebarNavButton,
+} from '../components/layout/SidebarNavButton'
 import { rolEtiqueta as etiquetaModoInterfaz } from '../components/layout/rolEtiqueta'
 import {
   backofficeBottomAccentClass,
@@ -125,23 +130,24 @@ const TIPOS_DOCUMENTO_ESTUDIANTE: { value: string; label: string }[] = [
 type TabId = 'resumen' | 'perfil' | 'cursos' | 'seguridad' | 'staff' | 'actividad'
 
 function buildTabItems(rol: RolApi, viewerRol: UserRole): { id: TabId; label: string; icon: ReactNode }[] {
-  const ic = 'h-4 w-4 shrink-0 opacity-90'
+  const ic = SIDEBAR_NAV_ICON_SIZE
+  const sw = 1.75
   const items: { id: TabId; label: string; icon: ReactNode }[] = [
-    { id: 'resumen', label: 'Resumen', icon: <LayoutDashboard className={ic} /> },
-    { id: 'perfil', label: 'Perfil y datos anexos', icon: <UserCircle2 className={ic} /> },
+    { id: 'resumen', label: 'Resumen', icon: <LayoutDashboard size={ic} strokeWidth={sw} /> },
+    { id: 'perfil', label: 'Perfil y datos anexos', icon: <UserCircle2 size={ic} strokeWidth={sw} /> },
   ]
   if (rol === 'docente' || rol === 'estudiante') {
     items.push({
       id: 'cursos',
       label: 'Cursos y asignación',
-      icon: <BookOpen className={ic} />,
+      icon: <BookOpen size={ic} strokeWidth={sw} />,
     })
   }
-  items.push({ id: 'seguridad', label: 'Seguridad', icon: <Lock className={ic} /> })
+  items.push({ id: 'seguridad', label: 'Seguridad', icon: <Lock size={ic} strokeWidth={sw} /> })
   if (rol === 'staff' && viewerRol === 'admin') {
-    items.push({ id: 'staff', label: 'Permisos staff', icon: <Shield className={ic} /> })
+    items.push({ id: 'staff', label: 'Permisos staff', icon: <Shield size={ic} strokeWidth={sw} /> })
   }
-  items.push({ id: 'actividad', label: 'Actividad', icon: <Activity className={ic} /> })
+  items.push({ id: 'actividad', label: 'Actividad', icon: <Activity size={ic} strokeWidth={sw} /> })
   return items
 }
 
@@ -892,21 +898,21 @@ export default function AdminMiembroPanelPage() {
           <div className="relative p-2">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-amber-50/40 to-transparent" aria-hidden />
           <div className="pointer-events-none absolute left-0 top-0 h-full w-px bg-gradient-to-b from-[var(--accent)]/50 via-[var(--accent-2)]/25 to-transparent" aria-hidden />
-          <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">Secciones</p>
-          <nav className="flex flex-col gap-0.5" aria-label="Secciones de la ficha">
+          <p className={SIDEBAR_SECTION_LABEL_CLASS}>Secciones</p>
+          <nav className={SIDEBAR_NAV_LIST_CLASS} aria-label="Secciones de la ficha">
             {tabItems.map((item) => (
               <SidebarNavButton
                 key={item.id}
                 active={tab === item.id}
                 icon={item.icon}
                 label={item.label}
-                variant="ficha"
+                showChevron
                 onClick={() => setTab(item.id)}
               />
             ))}
           </nav>
-          <div className="mt-3 border-t border-[var(--border)] pt-3">
-            <Button type="button" variant="primary" onClick={volverLista} className="w-full text-xs">
+          <div className="mt-2 border-t border-[var(--border)] pt-2">
+            <Button type="button" variant="primary" onClick={volverLista} className="h-8 w-full text-xs">
               Volver
             </Button>
           </div>

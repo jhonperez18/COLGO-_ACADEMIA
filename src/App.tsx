@@ -14,6 +14,7 @@ import AdminMiembroPanelPage from "./pages/AdminMiembroPanelPage";
 import MiembroFichaLayout from "./layouts/MiembroFichaLayout";
 import { ActualizarPasswordPage } from "./pages/ActualizarPasswordPage";
 import SupervisionUsuarioPage from "./pages/SupervisionUsuarioPage";
+import { RegistroPage } from "./pages/RegistroPage";
 import { StaffDashboardPage } from "./pages/StaffDashboardPage";
 
 function App() {
@@ -46,6 +47,9 @@ function App() {
         <Route element={<DashboardLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="eventos" element={<RegistroPage />} />
+          <Route path="historial" element={<Navigate to="eventos" replace />} />
+          <Route path="registro" element={<Navigate to="eventos" replace />} />
           <Route path="estudiantes" element={<UsuariosPage />} />
           <Route path="docentes" element={<UsuariosPage />} />
           <Route path="estudiantes-gestion" element={<UsuariosPage />} />
@@ -102,6 +106,9 @@ function App() {
         <Route element={<DashboardLayout />}>
           <Route index element={<StaffDashboardPage />} />
           <Route path="dashboard" element={<StaffDashboardPage />} />
+          <Route path="eventos" element={<RegistroPage />} />
+          <Route path="historial" element={<Navigate to="eventos" replace />} />
+          <Route path="registro" element={<Navigate to="eventos" replace />} />
           <Route path="usuarios" element={<UsuariosPage />} />
           <Route path="perfil" element={<StaffDashboardPage />} />
         </Route>

@@ -463,6 +463,10 @@ export type ActividadUsuario = {
   fecha: string;
 };
 
+export type RegistroSistemaItem = ActividadUsuario & {
+  actor_email?: string | null;
+};
+
 export type UsuariosListResponse = {
   items: UsuarioListaItem[]
   page: number
@@ -527,6 +531,11 @@ export async function getUsuariosCursosDisponibles() {
 
 export async function listLogsAdmin() {
   return apiCall<SistemaLog[]>('/usuarios/logs');
+}
+
+export async function listRegistroSistema(limit = 100) {
+  const q = new URLSearchParams({ limit: String(limit) });
+  return apiCall<RegistroSistemaItem[]>(`/usuarios/registro?${q}`);
 }
 
 export async function createUsuarioAdmin(body: {

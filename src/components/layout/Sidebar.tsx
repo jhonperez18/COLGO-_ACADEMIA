@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPinned,
+  ScrollText,
   Shield,
   UserCircle2,
   ReceiptText,
@@ -17,7 +18,13 @@ import { clearSession, loadSessionUser, type UserRole } from '../../state/authSe
 import { Button } from '../common/Button'
 import { ColgoBrandBlock } from './ColgoBrandBlock'
 import { rolEtiqueta } from './rolEtiqueta'
-import { SIDEBAR_NAV_ICON_SIZE, SIDEBAR_WIDTH_CLASS, SidebarNavButton } from './SidebarNavButton'
+import {
+  SIDEBAR_NAV_ICON_SIZE,
+  SIDEBAR_NAV_LIST_CLASS,
+  SIDEBAR_NAV_SCROLL_CLASS,
+  SIDEBAR_WIDTH_CLASS,
+  SidebarNavButton,
+} from './SidebarNavButton'
 
 const navIcon = SIDEBAR_NAV_ICON_SIZE
 
@@ -41,7 +48,7 @@ export function getNavItems(rol?: UserRole): NavItem[] {
 
   if (rol === 'admin') {
     return [
-      { to: `${base}/dashboard`, label: 'Panel', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/dashboard`, label: 'Inicio', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/estudiantes?vista=estudiante`, label: 'Estudiantes', icon: <Users size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/docentes`, label: 'Docentes', icon: <Users size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/staff?vista=staff`, label: 'Staff', icon: <Shield size={navIcon} strokeWidth={1.75} /> },
@@ -50,12 +57,13 @@ export function getNavItems(rol?: UserRole): NavItem[] {
       { to: `${base}/matriculas`, label: 'Matriculas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/sedes`, label: 'Sedes', icon: <MapPinned size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/usuarios`, label: 'Nuevo Registro', icon: <Shield size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/eventos`, label: 'Eventos', icon: <ScrollText size={navIcon} strokeWidth={1.75} /> },
     ]
   }
 
   if (rol === 'docente') {
     return [
-      { to: `${base}/dashboard`, label: 'Dashboard', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/dashboard`, label: 'Inicio', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/estudiantes`, label: 'Estudiantes', icon: <Users size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/notas`, label: 'Notas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/material`, label: 'Material', icon: <BookOpen size={navIcon} strokeWidth={1.75} /> },
@@ -65,9 +73,10 @@ export function getNavItems(rol?: UserRole): NavItem[] {
 
   if (rol === 'staff') {
     return [
-      { to: `${base}/dashboard`, label: 'Panel', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/dashboard`, label: 'Inicio', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/usuarios`, label: 'Usuarios', icon: <Shield size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/eventos`, label: 'Eventos', icon: <ScrollText size={navIcon} strokeWidth={1.75} /> },
     ]
   }
 
@@ -110,8 +119,8 @@ export function Sidebar({
           'lg:translate-x-0',
         )}
       >
-        <div className="px-3 pt-3">
-          <ColgoBrandBlock badgeLabel={rolEtiqueta(rol)} variant="fichaHeader" className="rounded-2xl" />
+        <div className="px-2 pt-2">
+          <ColgoBrandBlock badgeLabel={rolEtiqueta(rol)} variant="fichaHeader" className="rounded-xl px-4 pb-3 pt-3" />
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -121,8 +130,8 @@ export function Sidebar({
             aria-hidden
           />
 
-          <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto bg-gradient-to-b from-transparent via-slate-50/35 to-slate-100/30 px-2.5 py-3 pl-3">
-            <nav className="flex flex-col gap-0.5" aria-label="Navegación principal">
+          <div className={SIDEBAR_NAV_SCROLL_CLASS}>
+            <nav className={SIDEBAR_NAV_LIST_CLASS} aria-label="Navegación principal">
               {navItems.map((item) => {
                 const itemPath = item.to.split('?')[0]
                 const isActive = location.pathname === itemPath
@@ -133,7 +142,6 @@ export function Sidebar({
                     icon={item.icon}
                     label={item.label}
                     showChevron
-                    variant="panel"
                     onClick={() => {
                       navigate(item.to)
                       onClose()
@@ -144,12 +152,12 @@ export function Sidebar({
             </nav>
           </div>
 
-          <div className="shrink-0 border-t border-[var(--border)] bg-gradient-to-t from-amber-50/45 to-transparent px-3 py-3">
+          <div className="shrink-0 border-t border-[var(--border)] bg-gradient-to-t from-amber-50/45 to-transparent px-2 py-2">
             <Button
-              className="w-full border-amber-300/55 bg-gradient-to-b from-slate-200 via-amber-100/75 to-slate-300/85 text-slate-900 hover:border-amber-400/65 hover:from-slate-300 hover:via-amber-200/80 hover:to-slate-400/85 hover:text-slate-950"
+              className="h-8 w-full border-amber-300/55 bg-gradient-to-b from-slate-200 via-amber-100/75 to-slate-300/85 text-xs text-slate-900 hover:border-amber-400/65 hover:from-slate-300 hover:via-amber-200/80 hover:to-slate-400/85 hover:text-slate-950"
               size="sm"
               variant="secondary"
-              leftIcon={<LogOut size={16} strokeWidth={2} />}
+              leftIcon={<LogOut size={14} strokeWidth={2} />}
               onClick={() => {
                 clearSession()
                 navigate('/login', { replace: true })

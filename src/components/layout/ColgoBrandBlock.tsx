@@ -58,7 +58,6 @@ export function ColgoBrandBlock({
       <div className={cn('relative z-10', alignHeightWithSibling && 'flex min-h-0 flex-1 flex-col')}>
         <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">COLGO</p>
         <p className="mt-1.5 text-base font-semibold tracking-tight text-white">Academia</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-slate-400">Sistema académico integral</p>
         {alignHeightWithSibling ? <div className="min-h-3 flex-1" aria-hidden /> : null}
         <div
           className={cn(

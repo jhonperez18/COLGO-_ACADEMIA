@@ -2,30 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card } from '../components/common/Card'
 import { Badge } from '../components/common/Badge'
 import { KpiCard } from '../components/dashboard/KpiCard'
+import { RecentRegistroCompact } from '../components/dashboard/RecentRegistroCompact'
 import { BarChart, LineChart } from '../components/charts/MockCharts'
-import { formatCOP, formatDate } from '../services/mockData'
-import { Clock, CreditCard, MapPinned, ReceiptText, Sparkles, User } from 'lucide-react'
+import { formatCOP } from '../services/mockData'
 import { useColgo } from '../state/useColgo'
-import { getAdminEstadisticas, subscribeRealtime } from '../services/apiClient'
-
-function iconForKind(kind: 'Matrícula' | 'Pago' | 'Curso' | 'Sede' | 'Estudiante') {
-  const common = 'text-[rgba(113,63,18,0.95)]'
-  switch (kind) {
-    case 'Pago':
-      return <CreditCard size={16} className={common} />
-    case 'Matrícula':
-      return <ReceiptText size={16} className={common} />
-    case 'Sede':
-      return <MapPinned size={16} className={common} />
-    case 'Estudiante':
-      return <User size={16} className={common} />
-    default:
-      return <Sparkles size={16} className={common} />
-  }
-}
+import { getAdminEstadisticas, listRegistroSistema, subscribeRealtime, type RegistroSistemaItem } from '../services/apiClient'
 
 export function DashboardPage() {
-  const { students, payments, enrollments, courses, locations, recentActivity } = useColgo()
+  const { students, payments, enrollments, courses, locations } = useColgo()
+  const [registroReciente, setRegistroReciente] = useState<RegistroSistemaItem[]>([])
+  const [cargandoRegistro, setCargandoRegistro] = useState(true)
   const [apiStats, setApiStats] = useState<{
     estudiantes: number
     docentes: number
@@ -56,6 +42,24 @@ export function DashboardPage() {
         if (!cancel) setApiStats(stats)
       } catch {
         if (!cancel) setApiStats(null)
+      }
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancel = false
+    void (async () => {
+      setCargandoRegistro(true)
+      try {
+        const rows = await listRegistroSistema(5)
+        if (!cancel) setRegistroReciente(Array.isArray(rows) ? rows : [])
+      } catch {
+        if (!cancel) setRegistroReciente([])
+      } finally {
+        if (!cancel) setCargandoRegistro(false)
       }
     })()
     return () => {
@@ -166,47 +170,19 @@ export function DashboardPage() {
           <div className="mt-3">
             <BarChart values={matriculaSeries} />
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--muted)]">
+          <div className="mt-3 text-xs text-[var(--muted)]">
             <span>Última cohorte: 46</span>
-            <span className="inline-flex items-center gap-1">
-              <Clock size={14} />
-              actualizando...
-            </span>
           </div>
         </Card>
       </div>
 
-      <Card>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-[var(--text)]">Actividad reciente</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">Eventos recientes del sistema (mock)</p>
-          </div>
-          <Badge tone="accent">Ahora</Badge>
-        </div>
-
-        <div className="mt-3 divide-y divide-[var(--border)]">
-          {recentActivity.map((a) => (
-            <div key={a.id} className="flex items-start gap-3 py-3">
-              <div className="mt-0.5 grid h-8 w-8 place-items-center rounded-xl border border-[rgba(251,191,36,0.35)] bg-[rgba(254,243,199,0.65)]">
-                {iconForKind(a.kind)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-semibold text-[var(--text)]">{a.title}</p>
-                  <span className="shrink-0 text-xs text-[var(--subtle)]">{formatDate(a.createdAt)}</span>
-                </div>
-                <p className="mt-1 truncate text-xs text-[var(--muted)]">{a.detail}</p>
-                <div className="mt-2">
-                  <Badge tone={a.kind === 'Pago' ? 'warning' : a.kind === 'Matrícula' ? 'success' : 'neutral'}>
-                    {a.kind}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <div className="flex justify-start">
+        <RecentRegistroCompact
+          items={registroReciente}
+          verTodoHref="/admin/eventos"
+          cargando={cargandoRegistro}
+        />
+      </div>
     </div>
   )
 }

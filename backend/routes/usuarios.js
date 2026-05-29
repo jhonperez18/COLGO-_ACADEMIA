@@ -856,6 +856,31 @@ router.get('/cursos-disponibles', async (_req, res) => {
 })
 
 /**
+ * GET /api/usuarios/registro — historial global del sistema (actividad_usuarios)
+ */
+router.get('/registro', async (req, res) => {
+  try {
+    if (!(await requireStaffPermission(req, res, 'ver_logs'))) return
+    await ensureSupportTables()
+    const limitRaw = Number.parseInt(String(req.query.limit || '100'), 10) || 100
+    const limit = Math.min(500, Math.max(1, limitRaw))
+    const rows = await query(
+      `SELECT a.id, a.actor_usuario_id, a.actor_rol, a.objetivo_usuario_id, a.accion, a.detalle, a.ip_origen, a.fecha,
+              ua.email AS actor_email
+       FROM actividad_usuarios a
+       LEFT JOIN usuarios ua ON ua.id = a.actor_usuario_id
+       ORDER BY a.fecha DESC
+       LIMIT ?`,
+      [limit],
+    )
+    res.json(Array.isArray(rows) ? rows : [])
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Error al obtener registro del sistema' })
+  }
+})
+
+/**
  * GET /api/usuarios/logs — últimos eventos de auditoría (ruta fija antes de /:id)
  */
 router.get('/logs', async (_req, res) => {
