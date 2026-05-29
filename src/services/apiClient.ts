@@ -122,6 +122,7 @@ export type LoginResponse = {
 
 // ============ AUTHENTICATION ============
 export async function login(email: string, password: string) {
+  invalidateCache();
   const data = await apiCall<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),

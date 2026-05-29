@@ -4,6 +4,7 @@ import { ensureServerSession } from '../services/authVerify'
 import {
   getDashboardPathByRole,
   hasValidLocalSession,
+  isSessionVerified,
   loadSessionUser,
   type UserRole,
 } from '../state/authSession'
@@ -13,32 +14,36 @@ interface ProtectedRouteProps {
   rol?: UserRole
 }
 
-type GateState = 'checking' | 'allowed' | 'denied'
-
 export function ProtectedRoute({ children, rol }: ProtectedRouteProps) {
   const location = useLocation()
-  const [gate, setGate] = useState<GateState>('checking')
-  const usuario = gate === 'allowed' ? loadSessionUser() : null
+  const [ready, setReady] = useState(() => hasValidLocalSession() && isSessionVerified())
+  const [allowed, setAllowed] = useState(() => hasValidLocalSession() && isSessionVerified())
 
   useEffect(() => {
+    if (!hasValidLocalSession()) {
+      setAllowed(false)
+      setReady(true)
+      return
+    }
+    if (isSessionVerified()) {
+      setAllowed(true)
+      setReady(true)
+      return
+    }
+
     let cancelado = false
-  setGate('checking')
-
-    void (async () => {
-      if (!hasValidLocalSession()) {
-        if (!cancelado) setGate('denied')
-        return
+    void ensureServerSession().then((ok) => {
+      if (!cancelado) {
+        setAllowed(ok)
+        setReady(true)
       }
-      const ok = await ensureServerSession()
-      if (!cancelado) setGate(ok ? 'allowed' : 'denied')
-    })()
-
+    })
     return () => {
       cancelado = true
     }
   }, [])
 
-  if (gate === 'checking') {
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
         <p className="text-sm text-[var(--muted)]">Verificando sesión…</p>
@@ -46,7 +51,7 @@ export function ProtectedRoute({ children, rol }: ProtectedRouteProps) {
     )
   }
 
-  if (gate === 'denied' || !usuario) {
+  if (!allowed) {
     return (
       <Navigate
         to="/login"
@@ -54,6 +59,11 @@ export function ProtectedRoute({ children, rol }: ProtectedRouteProps) {
         state={{ from: location.pathname + location.search }}
       />
     )
+  }
+
+  const usuario = loadSessionUser()
+  if (!usuario) {
+    return <Navigate to="/login" replace />
   }
 
   if (location.pathname === '/actualizar-password' && !usuario.cambiar_password) {

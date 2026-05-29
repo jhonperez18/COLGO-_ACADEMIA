@@ -1,5 +1,3 @@
-import { invalidateCache } from '../services/apiCache'
-
 export type UserRole = 'admin' | 'estudiante' | 'docente' | 'staff'
 
 export type SessionUser = {
@@ -10,15 +8,13 @@ export type SessionUser = {
 const TOKEN_KEY = 'token'
 const USER_KEY = 'usuario'
 const SESSION_VERIFIED_KEY = 'colgo_auth_verified'
-/** Solo true tras login explícito en esta pestaña del navegador. */
-const LOGIN_SESSION_KEY = 'colgo_login_session'
 const FOTO_PREFIX = 'colgo_foto_'
 
-/** Auth en sessionStorage: al cerrar la pestaña hay que volver a iniciar sesión. */
 const authStore = (): Storage => sessionStorage
 
-let tokenCache: string | null = null
-let userCache: SessionUser | null | undefined = undefined
+/** undefined = aún no leído; null = sin sesión; objeto = usuario activo */
+let tokenCache: string | null | undefined
+let userCache: SessionUser | null | undefined
 
 function purgeLegacyPersistentAuth() {
   try {
@@ -32,6 +28,11 @@ function purgeLegacyPersistentAuth() {
   }
 }
 purgeLegacyPersistentAuth()
+
+function resetMemoryCache() {
+  tokenCache = undefined
+  userCache = undefined
+}
 
 export function isSessionVerified(): boolean {
   try {
@@ -89,35 +90,34 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
     if (parts.length !== 3) return null
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
     const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
-    const json = atob(padded)
-    return JSON.parse(json) as Record<string, unknown>
+    return JSON.parse(atob(padded)) as Record<string, unknown>
   } catch {
     return null
   }
 }
 
-function hasTokenUserMismatch(token: string, user: SessionUser): boolean {
-  const payload = decodeJwtPayload(token)
-  if (!payload) return false
-  const tokenRol = String(payload.rol ?? '')
-  const tokenId = Number(payload.id ?? NaN)
-  const userRol = String(user.rol ?? '')
-  const userId = Number((user as Record<string, unknown>).id ?? NaN)
-  if (tokenRol && userRol && tokenRol !== userRol) return true
-  if (Number.isFinite(tokenId) && Number.isFinite(userId) && tokenId !== userId) return true
-  return false
-}
-
 function hydrateFromStorage() {
   if (userCache !== undefined) return
+
   const store = authStore()
   const token = store.getItem(TOKEN_KEY)
   const usuario = store.getItem(USER_KEY)
-  if (!token || !usuario || store.getItem(LOGIN_SESSION_KEY) !== '1') {
+
+  if (!token || !usuario) {
     tokenCache = null
     userCache = null
     return
   }
+
+  if (isTokenExpired(token)) {
+    store.removeItem(TOKEN_KEY)
+    store.removeItem(USER_KEY)
+    clearSessionVerified()
+    tokenCache = null
+    userCache = null
+    return
+  }
+
   try {
     const parsed = JSON.parse(usuario) as SessionUser
     if (!parsed?.rol) {
@@ -125,7 +125,16 @@ function hydrateFromStorage() {
       userCache = null
       return
     }
-    if (hasTokenUserMismatch(token, parsed)) {
+    const payload = decodeJwtPayload(token)
+    const tokenRol = String(payload?.rol ?? '')
+    const tokenId = Number(payload?.id ?? NaN)
+    const userRol = String(parsed.rol ?? '')
+    const userId = Number((parsed as Record<string, unknown>).id ?? NaN)
+    if (tokenRol && userRol && tokenRol !== userRol) {
+      clearSession()
+      return
+    }
+    if (Number.isFinite(tokenId) && Number.isFinite(userId) && tokenId !== userId) {
       clearSession()
       return
     }
@@ -152,39 +161,31 @@ export function persistSession(token: string, usuario: SessionUser): void {
   delete (usuarioGuardado as Record<string, unknown>).foto_url
 
   const store = authStore()
-  tokenCache = token
-  userCache = usuarioGuardado
   store.setItem(TOKEN_KEY, token)
   store.setItem(USER_KEY, JSON.stringify(usuarioGuardado))
-  store.setItem(LOGIN_SESSION_KEY, '1')
-  storeProfilePhoto(userId as number | string | undefined, foto)
+  tokenCache = token
+  userCache = usuarioGuardado
   markSessionVerified()
-  invalidateCache()
+  storeProfilePhoto(userId as number | string | undefined, foto)
 }
 
 export function clearSession(): void {
-  tokenCache = null
-  userCache = null
-  const store = authStore()
-  store.removeItem(TOKEN_KEY)
-  store.removeItem(USER_KEY)
-  store.removeItem(LOGIN_SESSION_KEY)
-  clearSessionVerified()
-  invalidateCache()
+  resetMemoryCache()
+  try {
+    const store = authStore()
+    store.removeItem(TOKEN_KEY)
+    store.removeItem(USER_KEY)
+    clearSessionVerified()
+  } catch {
+    /* ignore */
+  }
 }
 
-/** Sesión válida solo si hubo login explícito en esta pestaña y el JWT no expiró. */
 export function hasValidLocalSession(): boolean {
   const token = getSessionToken()
   const user = loadSessionUser()
   if (!token || !user) return false
-  if (token === 'auth-token') return false
-  try {
-    if (authStore().getItem(LOGIN_SESSION_KEY) !== '1') return false
-  } catch {
-    return false
-  }
-  return true
+  return token !== 'auth-token'
 }
 
 export function loadSessionUser(): SessionUser | null {
@@ -194,10 +195,5 @@ export function loadSessionUser(): SessionUser | null {
 
 export function getSessionToken(): string | null {
   hydrateFromStorage()
-  const token = tokenCache ?? null
-  if (token && isTokenExpired(token)) {
-    clearSession()
-    return null
-  }
-  return token
+  return tokenCache ?? null
 }
