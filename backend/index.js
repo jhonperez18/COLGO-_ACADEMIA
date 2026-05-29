@@ -159,11 +159,21 @@ async function start() {
   } catch (e) {
     console.error('[startup] initAuthInfrastructure:', e?.code || e?.message || e);
   }
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`✓ Backend COLGO corriendo en puerto ${port}`);
     console.log(`✓ Entorno: ${process.env.NODE_ENV || 'development'}`);
     console.log(`✓ BD: ${process.env.DB_NAME} en ${process.env.DB_HOST}`);
     logSmtpStatus();
+  });
+  server.on('error', (err) => {
+    if (err?.code === 'EADDRINUSE') {
+      console.error(`\n✗ El puerto ${port} ya está en uso.`);
+      console.error('  Cierra la otra terminal con el backend o ejecuta: npm run dev');
+      console.error('  (predev libera el puerto 3001 automáticamente).\n');
+      process.exit(1);
+    }
+    console.error(err);
+    process.exit(1);
   });
 }
 

@@ -17,14 +17,18 @@ export function LoginPage() {
     event.preventDefault()
     setError(null)
 
-    if (!email.trim() || !password) {
+    const fd = new FormData(event.currentTarget)
+    const emailVal = String(fd.get('email') ?? email).trim()
+    const passwordVal = String(fd.get('password') ?? password)
+
+    if (!emailVal || !passwordVal) {
       setError('Por favor ingresa email y contraseña.')
       return
     }
 
     setCargando(true)
     try {
-      const data = await login(email.trim(), password)
+      const data = await login(emailVal, passwordVal)
       persistSession(data.token, data.usuario)
       const from = (location.state as { from?: string } | null)?.from
       const destino =
@@ -103,8 +107,10 @@ export function LoginPage() {
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-[var(--muted)]">Correo, usuario o cédula</span>
                 <input
+                  name="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onInput={(e) => setEmail(e.currentTarget.value)}
                   placeholder="correo@colgo.edu o número de cédula"
                   type="text"
                   autoComplete="username"
@@ -116,8 +122,10 @@ export function LoginPage() {
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-[var(--muted)]">Contraseña</span>
                 <input
+                  name="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onInput={(e) => setPassword(e.currentTarget.value)}
                   type="password"
                   autoComplete="current-password"
                   placeholder="••••••••"
@@ -140,7 +148,9 @@ export function LoginPage() {
               <p>
                 <strong>Conecta con backend:</strong>{' '}
                 {import.meta.env.DEV ? (
-                  <>en local ejecuta <code className="text-[var(--text)]">npm run server</code> (puerto 3001).</>
+                  <>
+                    en local ejecuta <code className="text-[var(--text)]">npm run dev</code> (API 3001 + web 5173).
+                  </>
                 ) : (
                   <>
                     API: <code className="break-all text-[var(--text)]">{resolveApiBaseUrl()}</code>

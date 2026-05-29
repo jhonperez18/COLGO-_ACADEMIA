@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar, getNavItems } from '../components/layout/Sidebar'
+import { SIDEBAR_LAYOUT_OFFSET_CLASS } from '../components/layout/SidebarNavButton'
 import { Header } from '../components/layout/Header'
 import { loadSessionUser } from '../state/authSession'
 import { getApiBase } from '../services/apiClient'
+import { cn } from '../utils/cn'
 
 export default function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -43,7 +45,7 @@ export default function DashboardLayout() {
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <Sidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <div className="lg:pl-72 lg:pt-3">
+      <div className={cn(SIDEBAR_LAYOUT_OFFSET_CLASS, 'lg:pt-3')}>
         <Header onOpenSidebar={() => setMobileOpen(true)} activePageLabel={activePageLabel} />
 
         <main className="bg-gradient-to-b from-amber-50/40 via-[var(--bg)] to-[var(--bg)] px-4 pb-8 pt-4 lg:px-6 lg:pb-10 lg:pt-5">

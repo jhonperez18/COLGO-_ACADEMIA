@@ -72,6 +72,11 @@ async function apiCall<T>(
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error('El servidor tardó demasiado. Espera unos segundos e intenta de nuevo.');
     }
+    if (err instanceof TypeError) {
+      throw new Error(
+        'No se pudo conectar con el backend. En local ejecuta npm run dev (API en puerto 3001 y Vite en 5173).',
+      );
+    }
     throw err;
   } finally {
     clearTimeout(timeoutId);

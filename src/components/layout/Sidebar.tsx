@@ -1,7 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   BookOpen,
-  ChevronRight,
   CreditCard,
   GraduationCap,
   LayoutDashboard,
@@ -18,6 +17,9 @@ import { clearSession, loadSessionUser, type UserRole } from '../../state/authSe
 import { Button } from '../common/Button'
 import { ColgoBrandBlock } from './ColgoBrandBlock'
 import { rolEtiqueta } from './rolEtiqueta'
+import { SIDEBAR_NAV_ICON_SIZE, SIDEBAR_WIDTH_CLASS, SidebarNavButton } from './SidebarNavButton'
+
+const navIcon = SIDEBAR_NAV_ICON_SIZE
 
 type NavItem = {
   to: string
@@ -39,42 +41,42 @@ export function getNavItems(rol?: UserRole): NavItem[] {
 
   if (rol === 'admin') {
     return [
-      { to: `${base}/dashboard`, label: 'Panel', icon: <LayoutDashboard size={18} strokeWidth={1.75} /> },
-      { to: `${base}/estudiantes?vista=estudiante`, label: 'Estudiantes', icon: <Users size={18} strokeWidth={1.75} /> },
-      { to: `${base}/docentes`, label: 'Docentes', icon: <Users size={18} strokeWidth={1.75} /> },
-      { to: `${base}/staff?vista=staff`, label: 'Staff', icon: <Shield size={18} strokeWidth={1.75} /> },
-      { to: `${base}/cursos`, label: 'Cursos', icon: <BookOpen size={18} strokeWidth={1.75} /> },
-      { to: `${base}/pagos`, label: 'Pagos', icon: <CreditCard size={18} strokeWidth={1.75} /> },
-      { to: `${base}/matriculas`, label: 'Matriculas', icon: <ReceiptText size={18} strokeWidth={1.75} /> },
-      { to: `${base}/sedes`, label: 'Sedes', icon: <MapPinned size={18} strokeWidth={1.75} /> },
-      { to: `${base}/usuarios`, label: 'Nuevo Registro', icon: <Shield size={18} strokeWidth={1.75} /> },
+      { to: `${base}/dashboard`, label: 'Panel', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/estudiantes?vista=estudiante`, label: 'Estudiantes', icon: <Users size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/docentes`, label: 'Docentes', icon: <Users size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/staff?vista=staff`, label: 'Staff', icon: <Shield size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/cursos`, label: 'Cursos', icon: <BookOpen size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/pagos`, label: 'Pagos', icon: <CreditCard size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/matriculas`, label: 'Matriculas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/sedes`, label: 'Sedes', icon: <MapPinned size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/usuarios`, label: 'Nuevo Registro', icon: <Shield size={navIcon} strokeWidth={1.75} /> },
     ]
   }
 
   if (rol === 'docente') {
     return [
-      { to: `${base}/dashboard`, label: 'Dashboard', icon: <LayoutDashboard size={18} strokeWidth={1.75} /> },
-      { to: `${base}/estudiantes`, label: 'Estudiantes', icon: <Users size={18} strokeWidth={1.75} /> },
-      { to: `${base}/notas`, label: 'Notas', icon: <ReceiptText size={18} strokeWidth={1.75} /> },
-      { to: `${base}/material`, label: 'Material', icon: <BookOpen size={18} strokeWidth={1.75} /> },
-      { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={18} strokeWidth={1.75} /> },
+      { to: `${base}/dashboard`, label: 'Dashboard', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/estudiantes`, label: 'Estudiantes', icon: <Users size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/notas`, label: 'Notas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/material`, label: 'Material', icon: <BookOpen size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
     ]
   }
 
   if (rol === 'staff') {
     return [
-      { to: `${base}/dashboard`, label: 'Panel', icon: <LayoutDashboard size={18} strokeWidth={1.75} /> },
-      { to: `${base}/usuarios`, label: 'Usuarios', icon: <Shield size={18} strokeWidth={1.75} /> },
-      { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={18} strokeWidth={1.75} /> },
+      { to: `${base}/dashboard`, label: 'Panel', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/usuarios`, label: 'Usuarios', icon: <Shield size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
     ]
   }
 
   return [
-    { to: `${base}/dashboard`, label: 'Inicio', icon: <LayoutDashboard size={18} strokeWidth={1.75} /> },
-    { to: `${base}/cursos`, label: 'Mis cursos', icon: <BookOpen size={18} strokeWidth={1.75} /> },
-    { to: `${base}/notas`, label: 'Notas', icon: <ReceiptText size={18} strokeWidth={1.75} /> },
-    { to: `${base}/certificados`, label: 'Certificados', icon: <GraduationCap size={18} strokeWidth={1.75} /> },
-    { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={18} strokeWidth={1.75} /> },
+    { to: `${base}/dashboard`, label: 'Inicio', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
+    { to: `${base}/cursos`, label: 'Mis cursos', icon: <BookOpen size={navIcon} strokeWidth={1.75} /> },
+    { to: `${base}/notas`, label: 'Notas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
+    { to: `${base}/certificados`, label: 'Certificados', icon: <GraduationCap size={navIcon} strokeWidth={1.75} /> },
+    { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
   ]
 }
 
@@ -99,7 +101,8 @@ export function Sidebar({
 
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 flex h-dvh w-72 flex-col border-r border-[var(--border)]',
+          'fixed left-0 top-0 z-50 flex h-dvh flex-col border-r border-[var(--border)]',
+          SIDEBAR_WIDTH_CLASS,
           'bg-gradient-to-b from-[var(--surface)] via-[#fffdf8] to-[var(--panel-2)]',
           'shadow-[6px_0_28px_rgba(15,23,42,0.08)]',
           'transition-transform duration-200 ease-out',
@@ -118,62 +121,24 @@ export function Sidebar({
             aria-hidden
           />
 
-          <div className="flex flex-1 flex-col gap-1 overflow-y-auto bg-gradient-to-b from-transparent via-slate-50/35 to-slate-100/30 px-3 py-4 pl-4">
-            <nav className="flex flex-col gap-1" aria-label="Navegación principal">
+          <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto bg-gradient-to-b from-transparent via-slate-50/35 to-slate-100/30 px-2.5 py-3 pl-3">
+            <nav className="flex flex-col gap-0.5" aria-label="Navegación principal">
               {navItems.map((item) => {
                 const itemPath = item.to.split('?')[0]
                 const isActive = location.pathname === itemPath
                 return (
-                  <button
+                  <SidebarNavButton
                     key={item.to}
-                    type="button"
+                    active={isActive}
+                    icon={item.icon}
+                    label={item.label}
+                    showChevron
+                    variant="panel"
                     onClick={() => {
                       navigate(item.to)
                       onClose()
                     }}
-                    className={cn(
-                      'group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-all duration-150',
-                      isActive
-                        ? 'border border-amber-400/55 bg-gradient-to-r from-slate-300 via-amber-100/70 to-amber-200/60 shadow-md ring-1 ring-amber-500/40'
-                        : 'border border-slate-300/80 bg-gradient-to-r from-slate-100/85 via-white to-slate-200/70 hover:border-slate-400/90 hover:from-slate-200/90 hover:via-slate-100 hover:to-slate-300/70',
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-all duration-150',
-                        isActive
-                          ? 'border-amber-500/55 bg-gradient-to-b from-slate-500 via-slate-400 to-amber-300/80 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]'
-                          : 'border-slate-300/90 bg-gradient-to-b from-slate-100 to-slate-200/85 text-slate-700 group-hover:border-slate-500/85 group-hover:from-slate-300 group-hover:to-slate-400/75 group-hover:text-slate-950',
-                      )}
-                    >
-                      {item.icon}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          'block text-sm transition-colors',
-                          isActive ? 'font-semibold text-slate-950' : 'font-medium text-slate-700 group-hover:text-slate-900',
-                        )}
-                      >
-                        {item.label}
-                      </span>
-                      {isActive ? (
-                        <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                          Vista actual
-                        </span>
-                      ) : null}
-                    </span>
-                    <ChevronRight
-                      size={16}
-                      strokeWidth={2}
-                      className={cn(
-                        'shrink-0 transition-all',
-                        isActive
-                          ? 'translate-x-0 text-amber-700 opacity-100'
-                          : 'text-slate-500/70 opacity-40 group-hover:translate-x-0 group-hover:opacity-80',
-                      )}
-                    />
-                  </button>
+                  />
                 )
               })}
             </nav>

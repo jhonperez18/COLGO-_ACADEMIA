@@ -12,6 +12,7 @@ import { Activity, BookOpen, ExternalLink, LayoutDashboard, Lock, Mail, Shield, 
 import { Button } from '../components/common/Button'
 import { Card } from '../components/common/Card'
 import { ColgoBrandBlock } from '../components/layout/ColgoBrandBlock'
+import { SidebarNavButton } from '../components/layout/SidebarNavButton'
 import { rolEtiqueta as etiquetaModoInterfaz } from '../components/layout/rolEtiqueta'
 import {
   backofficeBottomAccentClass,
@@ -124,7 +125,7 @@ const TIPOS_DOCUMENTO_ESTUDIANTE: { value: string; label: string }[] = [
 type TabId = 'resumen' | 'perfil' | 'cursos' | 'seguridad' | 'staff' | 'actividad'
 
 function buildTabItems(rol: RolApi, viewerRol: UserRole): { id: TabId; label: string; icon: ReactNode }[] {
-  const ic = 'h-3 w-3 shrink-0 opacity-90'
+  const ic = 'h-4 w-4 shrink-0 opacity-90'
   const items: { id: TabId; label: string; icon: ReactNode }[] = [
     { id: 'resumen', label: 'Resumen', icon: <LayoutDashboard className={ic} /> },
     { id: 'perfil', label: 'Perfil y datos anexos', icon: <UserCircle2 className={ic} /> },
@@ -891,30 +892,17 @@ export default function AdminMiembroPanelPage() {
           <div className="relative p-2">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-amber-50/40 to-transparent" aria-hidden />
           <div className="pointer-events-none absolute left-0 top-0 h-full w-px bg-gradient-to-b from-[var(--accent)]/50 via-[var(--accent-2)]/25 to-transparent" aria-hidden />
-          <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Secciones</p>
-          <nav className="flex flex-col gap-1" aria-label="Secciones de la ficha">
+          <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">Secciones</p>
+          <nav className="flex flex-col gap-0.5" aria-label="Secciones de la ficha">
             {tabItems.map((item) => (
-              <button
+              <SidebarNavButton
                 key={item.id}
-                type="button"
+                active={tab === item.id}
+                icon={item.icon}
+                label={item.label}
+                variant="ficha"
                 onClick={() => setTab(item.id)}
-                className={`group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-all duration-150 ${
-                  tab === item.id
-                    ? 'border border-slate-200 bg-gradient-to-r from-white to-slate-100/75 font-semibold text-[var(--text)] ring-1 ring-[rgba(251,191,36,0.18)]'
-                    : 'border border-transparent font-medium text-[var(--text)]/78 hover:border-slate-300/70 hover:bg-gradient-to-r hover:from-slate-100/95 hover:to-slate-200/75 hover:text-[var(--text)]'
-                }`}
-              >
-                <span
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
-                    tab === item.id
-                      ? 'border-slate-300/80 bg-slate-100/90 text-[rgba(113,63,18,0.95)]'
-                      : 'border-[rgba(15,23,42,0.08)] bg-slate-50/80 text-[var(--muted)] group-hover:border-slate-300/80 group-hover:bg-slate-200/85 group-hover:text-[var(--text)]'
-                  }`}
-                >
-                  {item.icon}
-                </span>
-                <span className="whitespace-nowrap">{item.label}</span>
-              </button>
+              />
             ))}
           </nav>
           <div className="mt-3 border-t border-[var(--border)] pt-3">
