@@ -37,13 +37,20 @@ export function resolveApiBaseUrl(): string {
     }
   }
 
-  // 2. Si estamos en PRODUCCIÓN (Vercel):
-  // Primero intentamos usar la variable VITE_API_URL que pusimos en el panel
-  if (fromEnv !== '' && !isLocalhostUrl(fromEnv)) {
-    return fromEnv
+  // 2. Producción en Vercel: API en el mismo dominio (/_backend vía vercel.json)
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    if (host.endsWith('.vercel.app')) {
+      if (fromEnv !== '' && fromEnv.startsWith('/')) {
+        return fromEnv.replace(/\/$/, '')
+      }
+      return '/api'
+    }
   }
 
-  // 3. Fallback estable en producción: API pública externa (Render).
-  // Evita apuntar a /_backend/api cuando el backend de Vercel no tiene DB configurada.
+  // 3. Fallback: variable de entorno absoluta o /api
+  if (fromEnv !== '' && !isLocalhostUrl(fromEnv)) {
+    return fromEnv.replace(/\/$/, '')
+  }
   return PRODUCTION_API_BASE_URL.replace(/\/$/, '')
 }

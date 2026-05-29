@@ -28,5 +28,4 @@ dist-ssr
 .env
 .env*.local
 .env.production
-.env.vercel.pull
-.env.bm9ko.pull
+.env.vercel.*
