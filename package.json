@@ -17,7 +17,8 @@
     "vercel:pull": "npx --yes vercel@latest env pull .env.vercel.local --yes",
     "vercel:deploy": "npx --yes vercel@latest deploy",
     "vercel:env:production": "node scripts/push-vercel-env.mjs",
-    "vercel:prod": "npx --yes vercel@latest link --yes --project colgo-academi-saas && npx --yes vercel@latest deploy --prod --yes"
+    "vercel:prod": "npx --yes vercel@latest link --yes --project colgo-academi-saas && npx --yes vercel@latest deploy --prod --yes",
+    "check:production": "node scripts/check-production-api.mjs"
   },
   "ts-node": {
     "esm": true,
