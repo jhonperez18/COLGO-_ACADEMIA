@@ -1,9 +1,8 @@
 import { useState, type FormEvent, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/common/Button'
+import { getApiBase, login } from '../services/apiClient'
 import { resolveApiBaseUrl } from '../config/apiBaseUrl'
-import { normalizeApiBase } from '../config/normalizeApiBase'
-import { login } from '../services/apiClient'
 import {
   clearSession,
   getDashboardPathByRole,
@@ -32,7 +31,7 @@ export function LoginPage() {
     setCargando(true)
     try {
       // Realizar login con el backend
-      const data = await login(email.trim(), password.trim())
+      const data = await login(email.trim(), password)
 
       persistSession(data.token, data.usuario)
       navigate(getDashboardPathByRole(data.usuario.rol), { replace: true })
@@ -48,8 +47,7 @@ export function LoginPage() {
 
   // Despertar el servidor (Render) mientras el usuario escribe credenciales
   useEffect(() => {
-    const base = normalizeApiBase(import.meta.env.VITE_API_URL)
-    void fetch(`${base}/health`, { method: 'GET' }).catch(() => {})
+    void fetch(`${getApiBase()}/health`, { method: 'GET' }).catch(() => {})
   }, [])
 
   // Solo redirige al panel si ya inició sesión en esta pestaña; ?force_login=1 siempre pide credenciales.

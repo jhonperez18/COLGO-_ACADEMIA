@@ -17,7 +17,7 @@ export function authenticateJWT(req, res, next) {
   jwt.verify(token, secret, (err, user) => {
     if (err) {
       console.error('Error al verificar token:', err.message);
-      return res.status(403).json({ error: 'Token inválido o expirado' });
+      return res.status(401).json({ error: 'Token inválido o expirado' });
     }
 
     req.user = user;

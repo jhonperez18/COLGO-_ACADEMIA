@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import authRoutes from './routes/auth.js';
+import authRoutes, { initAuthInfrastructure } from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import studentRoutes from './routes/student.js';
 import teacherRoutes from './routes/teacher.js';
@@ -139,6 +139,7 @@ app.use(errorHandler);
 
 async function start() {
   await ensureSchemaRuntime();
+  await initAuthInfrastructure();
   app.listen(port, () => {
     console.log(`✓ Backend COLGO corriendo en puerto ${port}`);
     console.log(`✓ Entorno: ${process.env.NODE_ENV || 'development'}`);

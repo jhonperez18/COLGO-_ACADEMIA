@@ -9,6 +9,7 @@ import { handleMePerfilGet, handleMePerfilPut } from './usuarios.js';
 const router = express.Router();
 
 let authTablesReady = false;
+
 async function ensureUltimoAccesoColumn() {
   const existsRows = await query(
     `SELECT 1 AS ok
@@ -22,7 +23,8 @@ async function ensureUltimoAccesoColumn() {
     await query('ALTER TABLE usuarios ADD COLUMN ultimo_acceso DATETIME NULL');
   }
 }
-async function ensureAuthSecurityTables() {
+
+export async function initAuthInfrastructure() {
   if (authTablesReady) return;
   await ensureUltimoAccesoColumn();
   await query(`
@@ -40,6 +42,11 @@ async function ensureAuthSecurityTables() {
     )
   `);
   authTablesReady = true;
+}
+
+async function ensureAuthSecurityTables() {
+  if (authTablesReady) return;
+  await initAuthInfrastructure();
 }
 
 async function logAuthActivity({ actorId = null, actorRol = null, objetivoId = null, accion, detalle = null, ip = null }) {
@@ -84,15 +91,17 @@ async function resolveNombrePanel(usuario) {
  */
 router.post('/login', validateLogin, handleValidationErrors, async (req, res) => {
   try {
-    await ensureAuthSecurityTables();
     const { email, password } = req.body;
+    const ident = String(email || '').trim();
+    const passwordRaw = String(password ?? '');
 
-    // Buscar usuario por email O por username (parte antes del @)
-    // Si el input no tiene @, busca usuarios cuyo email comience con ese username
+    if (!ident || !passwordRaw) {
+      return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
+    }
+
     let usuarios;
-    const ident = email.trim();
     if (ident.includes('@')) {
-      usuarios = await query('SELECT * FROM usuarios WHERE LOWER(email) = LOWER(?)', [ident]);
+      usuarios = await query('SELECT * FROM usuarios WHERE LOWER(email) = LOWER(?) LIMIT 1', [ident]);
     } else {
       const soloDigitos = ident.replace(/\D/g, '');
       try {
@@ -104,6 +113,7 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
           sqlEst += ` OR REPLACE(REPLACE(TRIM(e.documento), '.', ''), '-', '') = ?`;
           argsEst.push(soloDigitos);
         }
+        sqlEst += ' LIMIT 1';
         usuarios = await query(sqlEst, argsEst);
       } catch (error) {
         if (!isMissingTableError(error)) throw error;
@@ -120,6 +130,7 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
             sqlDoc += ` OR REPLACE(REPLACE(TRIM(d.documento), '.', ''), '-', '') = ?`;
             argsDoc.push(soloDigitos);
           }
+          sqlDoc += ' LIMIT 1';
           usuarios = await query(sqlDoc, argsDoc);
         } catch (error) {
           if (!isMissingTableError(error)) throw error;
@@ -127,17 +138,17 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
         }
       }
       if (!usuarios?.length) {
-        usuarios = await query('SELECT * FROM usuarios WHERE LOWER(email) LIKE LOWER(?) OR LOWER(email) = LOWER(?)', [
-          `${ident}@%`,
-          ident,
-        ]);
+        usuarios = await query(
+          'SELECT * FROM usuarios WHERE LOWER(email) LIKE LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1',
+          [`${ident}@%`, ident],
+        );
       }
     }
-    
-    if (usuarios.length === 0) {
-      await logAuthActivity({
+
+    if (!usuarios?.length) {
+      void logAuthActivity({
         accion: 'login_failed',
-        detalle: `Intento fallido para identificador ${String(email || '').trim()}`,
+        detalle: `Intento fallido para identificador ${ident}`,
         ip: req.ip,
       });
       return res.status(401).json({ error: 'Credenciales inválidas' });
@@ -146,9 +157,8 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
     const usuario = usuarios[0];
     const nombrePanel = await resolveNombrePanel(usuario);
 
-    // Verificar que el usuario esté activo
     if (!usuario.activo) {
-      await logAuthActivity({
+      void logAuthActivity({
         objetivoId: Number(usuario.id),
         accion: 'login_blocked_user',
         detalle: 'Intento de acceso de usuario inactivo',
@@ -157,10 +167,13 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
       return res.status(401).json({ error: 'Usuario inactivo' });
     }
 
-    // Comparar contraseña
-    const passwordValid = await bcrypt.compare(password, usuario.password_hash);
+    if (!usuario.password_hash || typeof usuario.password_hash !== 'string') {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    const passwordValid = await bcrypt.compare(passwordRaw, usuario.password_hash);
     if (!passwordValid) {
-      await logAuthActivity({
+      void logAuthActivity({
         objetivoId: Number(usuario.id),
         accion: 'login_failed',
         detalle: 'Contraseña inválida',
@@ -168,8 +181,9 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
       });
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
-    await query('UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?', [usuario.id]);
-    await logAuthActivity({
+
+    void query('UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?', [usuario.id]);
+    void logAuthActivity({
       actorId: Number(usuario.id),
       actorRol: String(usuario.rol || ''),
       objetivoId: Number(usuario.id),
@@ -329,7 +343,12 @@ router.get('/me', async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    res.json({ success: true, usuario: usuarios[0] });
+    const row = usuarios[0];
+    if (!row.activo) {
+      return res.status(401).json({ error: 'Usuario inactivo' });
+    }
+
+    res.json({ success: true, usuario: row });
   } catch (error) {
     console.error('Error en /me:', error);
     res.status(401).json({ error: 'No autorizado' });
@@ -373,7 +392,7 @@ router.post('/change-password', async (req, res) => {
       }
       const ok = await bcrypt.compare(String(currentPassword), usuario.password_hash);
       if (!ok) {
-        return res.status(401).json({ error: 'La contraseña actual no es correcta' });
+        return res.status(400).json({ error: 'La contraseña actual no es correcta' });
       }
     }
 

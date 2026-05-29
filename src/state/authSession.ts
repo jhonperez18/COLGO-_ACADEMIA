@@ -7,40 +7,14 @@ export type SessionUser = {
 
 const TOKEN_KEY = 'token'
 const USER_KEY = 'usuario'
-const SESSION_ACTIVE_KEY = 'colgo_auth_active'
 const SESSION_VERIFIED_KEY = 'colgo_auth_verified'
 const FOTO_PREFIX = 'colgo_foto_'
 let tokenCache: string | null = null
 let userCache: SessionUser | null | undefined = undefined
 
-export function hasActiveBrowserSession(): boolean {
-  try {
-    return sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function markSessionActive(): void {
-  try {
-    sessionStorage.setItem(SESSION_ACTIVE_KEY, '1')
-  } catch {
-    /* ignore */
-  }
-}
-
-function clearSessionActive(): void {
-  try {
-    sessionStorage.removeItem(SESSION_ACTIVE_KEY)
-    sessionStorage.removeItem(SESSION_VERIFIED_KEY)
-  } catch {
-    /* ignore */
-  }
-}
-
 export function isSessionVerified(): boolean {
   try {
-    return sessionStorage.getItem(SESSION_VERIFIED_KEY) === '1'
+    return localStorage.getItem(SESSION_VERIFIED_KEY) === '1'
   } catch {
     return false
   }
@@ -48,7 +22,15 @@ export function isSessionVerified(): boolean {
 
 export function markSessionVerified(): void {
   try {
-    sessionStorage.setItem(SESSION_VERIFIED_KEY, '1')
+    localStorage.setItem(SESSION_VERIFIED_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearSessionVerified(): void {
+  try {
+    localStorage.removeItem(SESSION_VERIFIED_KEY)
   } catch {
     /* ignore */
   }
@@ -126,6 +108,7 @@ function hydrateFromStorage() {
       userCache = null
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
+      clearSessionVerified()
       return
     }
     tokenCache = token
@@ -155,7 +138,6 @@ export function persistSession(token: string, usuario: SessionUser): void {
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(USER_KEY, JSON.stringify(usuarioGuardado))
   storeProfilePhoto(userId as number | string | undefined, foto)
-  markSessionActive()
   markSessionVerified()
 }
 
@@ -164,20 +146,15 @@ export function clearSession(): void {
   userCache = null
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
-  clearSessionActive()
+  clearSessionVerified()
 }
 
-/** Sesión local válida para esta pestaña (token + usuario + pestaña activa + JWT no expirado). */
+/** Sesión local válida: JWT + usuario + no expirado. */
 export function hasValidLocalSession(): boolean {
-  if (!hasActiveBrowserSession()) return false
   const token = getSessionToken()
   const user = loadSessionUser()
   if (!token || !user) return false
   if (token === 'auth-token') return false
-  if (isTokenExpired(token)) {
-    clearSession()
-    return false
-  }
   return true
 }
 

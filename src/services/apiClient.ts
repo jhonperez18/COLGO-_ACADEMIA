@@ -6,33 +6,60 @@ function realtimeBaseFromApi(apiBase: string): string {
   return apiBase.replace(/\/api$/, '')
 }
 
+/** Base API única: respeta producción y evita localhost embebido en el build. */
+export function getApiBase(): string {
+  return normalizeApiBase(resolveApiBaseUrl());
+}
+
 interface FetchOptions extends RequestInit {
   headers?: HeadersInit;
 }
 
+type ApiCallOptions = FetchOptions & {
+  skipAuth?: boolean;
+  noSessionRedirect?: boolean;
+};
+
+const REQUEST_TIMEOUT_MS = 25_000;
+
 async function apiCall<T>(
   endpoint: string,
-  options: FetchOptions = {}
+  options: ApiCallOptions = {}
 ): Promise<T> {
-  const token = getSessionToken();
+  const { skipAuth = false, noSessionRedirect = false, ...fetchOptions } = options;
+  const token = skipAuth ? null : getSessionToken();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> | undefined),
+    ...(fetchOptions.headers as Record<string, string> | undefined),
   };
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const base = normalizeApiBase(import.meta.env.VITE_API_URL);
-  const response = await fetch(`${base}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const base = getApiBase();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  // Si el token expiró, redirigir a login
-  if (response.status === 401) {
+  let response: Response;
+  try {
+    response = await fetch(`${base}${endpoint}`, {
+      ...fetchOptions,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('El servidor tardó demasiado. Espera unos segundos e intenta de nuevo.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  const isAuthFailure = response.status === 401 || response.status === 403;
+  if (isAuthFailure && token && !noSessionRedirect) {
     clearSession();
     window.location.href = '/login';
     throw new Error('Sesión expirada');
@@ -72,6 +99,8 @@ export async function login(email: string, password: string) {
   return apiCall<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
+    skipAuth: true,
+    noSessionRedirect: true,
   });
 }
 
@@ -513,6 +542,7 @@ export async function changePassword(currentPassword: string | null, newPassword
   return apiCall<{ success: boolean; message?: string }>('/auth/change-password', {
     method: 'POST',
     body: JSON.stringify(body),
+    noSessionRedirect: true,
   });
 }
 
@@ -607,7 +637,7 @@ function ensureRealtimeConnection() {
   const token = getSessionToken();
   if (!token) return;
 
-  const url = `${realtimeBaseFromApi(resolveApiBaseUrl())}/api/realtime/stream?token=${encodeURIComponent(token)}`;
+  const url = `${realtimeBaseFromApi(getApiBase())}/api/realtime/stream?token=${encodeURIComponent(token)}`;
   realtimeES = new EventSource(url);
   bindEventType('connected');
   bindEventType('grade_updated');
