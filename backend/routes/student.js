@@ -1,8 +1,6 @@
 import express from 'express';
 import { query } from '../db.js';
 import { authorizeRole } from '../middleware/auth.js';
-import { ensureSchemaRuntime } from '../schemaRuntime.js';
-
 const router = express.Router();
 
 const MAX_FOTO_CHARS = 800000;
@@ -16,24 +14,30 @@ router.use(authorizeRole('estudiante'));
  */
 router.get('/perfil', async (req, res) => {
   try {
-    await ensureSchemaRuntime();
+    const includeFoto = String(req.query.foto || '') === '1';
     const estudiantes = await query(
-      'SELECT * FROM estudiantes WHERE usuario_id = ?',
-      [req.user.id]
+      `SELECT id, usuario_id, nombre, apellido, documento, tipo_documento, telefono,
+              direccion, ciudad, pais, departamento, municipio, fecha_nacimiento, estado_civil
+       FROM estudiantes WHERE usuario_id = ? LIMIT 1`,
+      [req.user.id],
     );
 
     if (estudiantes.length === 0) {
       return res.status(404).json({ error: 'Perfil de estudiante no encontrado' });
     }
 
-    const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [req.user.id]);
-    let foto_url = null;
-    if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
-      const fv = uRows[0].foto_url;
-      foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+    let foto_url;
+    if (includeFoto) {
+      const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [req.user.id]);
+      if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
+        const fv = uRows[0].foto_url;
+        foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+      } else {
+        foto_url = null;
+      }
     }
 
-    res.json({ ...estudiantes[0], foto_url });
+    res.json({ ...estudiantes[0], ...(includeFoto ? { foto_url } : {}) });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Error al obtener perfil' });
@@ -46,7 +50,6 @@ router.get('/perfil', async (req, res) => {
  */
 router.put('/perfil', async (req, res) => {
   try {
-    await ensureSchemaRuntime();
     const {
       nombre,
       apellido,

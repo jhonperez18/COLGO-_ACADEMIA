@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar, getNavItems } from '../components/layout/Sidebar'
 import { Header } from '../components/layout/Header'
 import { loadSessionUser } from '../state/authSession'
+import { getApiBase } from '../services/apiClient'
 
 export default function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -11,6 +12,15 @@ export default function DashboardLayout() {
   const rol = loadSessionUser()?.rol
   const cambiarPasswordPendiente = Boolean(loadSessionUser()?.cambiar_password)
   const navItems = useMemo(() => getNavItems(rol), [rol])
+
+  useEffect(() => {
+    const warm = () => {
+      void fetch(`${getApiBase()}/health`, { method: 'GET' }).catch(() => {})
+    }
+    warm()
+    const timer = window.setInterval(warm, 4 * 60 * 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const activePageLabel = useMemo(() => {
     const pathname = location.pathname.replace(/\/$/, '') || '/'

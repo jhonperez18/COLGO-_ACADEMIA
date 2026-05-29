@@ -367,16 +367,33 @@ router.put(
 );
 
 // ===== ESTUDIANTE =====
-router.get('/student/mis-cursos', async (req, res) => {
-  if (!hasRole(req.user, 'estudiante')) return res.status(403).json({ error: 'No autorizado' });
 
-  const studentRows = await query('SELECT id FROM estudiantes WHERE usuario_id = ? LIMIT 1', [req.user.id]);
-  if (studentRows.length === 0) return res.status(404).json({ error: 'Estudiante no encontrado' });
+async function fetchStudentCursosWithProgress(usuarioId) {
+  const studentRows = await query('SELECT id FROM estudiantes WHERE usuario_id = ? LIMIT 1', [usuarioId]);
+  if (studentRows.length === 0) return { estudianteId: null, cursos: [] };
   const estudianteId = Number(studentRows[0].id);
 
   const cursos = await query(
     `SELECT c.id, c.nombre, c.codigo, c.descripcion, m.estado, m.calificacion_final,
-            (SELECT COUNT(*) FROM modulos mo WHERE mo.curso_id = c.id AND mo.activo = TRUE) as total_modulos
+            (SELECT COUNT(*) FROM modulos mo WHERE mo.curso_id = c.id AND mo.activo = TRUE) AS total_modulos,
+            LEAST(
+              100,
+              COALESCE(
+                ROUND(
+                  (
+                    SELECT COUNT(*)
+                    FROM asistencias_clase ac
+                    INNER JOIN clases cl ON cl.id = ac.clase_id
+                    WHERE cl.curso_id = c.id
+                      AND ac.estudiante_id = m.estudiante_id
+                      AND ac.estado IN ('presente', 'tarde', 'justificado')
+                  )
+                  / NULLIF((SELECT COUNT(*) FROM clases cl2 WHERE cl2.curso_id = c.id), 0)
+                  * 100
+                ),
+                0
+              )
+            ) AS progreso
      FROM matriculas m
      INNER JOIN cursos c ON c.id = m.curso_id
      WHERE m.estudiante_id = ?
@@ -384,26 +401,97 @@ router.get('/student/mis-cursos', async (req, res) => {
     [estudianteId],
   );
 
-  const cursosConProgreso = [];
-  for (const curso of cursos) {
-    const classesCount = await query(
-      'SELECT COUNT(*) as total FROM clases WHERE curso_id = ?',
-      [curso.id],
-    );
-    const attendanceCount = await query(
-      `SELECT COUNT(*) as total
-       FROM asistencias_clase ac
-       INNER JOIN clases cl ON cl.id = ac.clase_id
-       WHERE cl.curso_id = ? AND ac.estudiante_id = ? AND ac.estado IN ('presente','tarde','justificado')`,
-      [curso.id, estudianteId],
-    );
-    const totalClases = Number(classesCount?.[0]?.total || 0);
-    const asistidas = Number(attendanceCount?.[0]?.total || 0);
-    const progreso = totalClases > 0 ? Math.min(100, Math.round((asistidas / totalClases) * 100)) : 0;
-    cursosConProgreso.push({ ...curso, progreso });
+  return { estudianteId, cursos: Array.isArray(cursos) ? cursos : [] };
+}
+
+async function fetchStudentPerfil(usuarioId, includeFoto = false) {
+  const estudiantes = await query(
+    `SELECT id, usuario_id, nombre, apellido, documento, tipo_documento, telefono,
+            direccion, ciudad, pais, departamento, municipio, fecha_nacimiento, estado_civil
+     FROM estudiantes WHERE usuario_id = ? LIMIT 1`,
+    [usuarioId],
+  );
+  if (!Array.isArray(estudiantes) || estudiantes.length === 0) return null;
+  const perfil = { ...estudiantes[0] };
+  if (includeFoto) {
+    const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [usuarioId]);
+    if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
+      const fv = uRows[0].foto_url;
+      perfil.foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+    } else {
+      perfil.foto_url = null;
+    }
+  }
+  return perfil;
+}
+
+router.get('/student/inicio', async (req, res) => {
+  if (!hasRole(req.user, 'estudiante')) return res.status(403).json({ error: 'No autorizado' });
+
+  const uid = req.user.id;
+  const includeFoto = String(req.query.foto || '') === '1';
+
+  try {
+    const [perfil, cursosPack, certificados, calendario, notificaciones] = await Promise.all([
+      fetchStudentPerfil(uid, includeFoto),
+      fetchStudentCursosWithProgress(uid),
+      query(
+        `SELECT cert.id, cert.numero_certificado, cert.fecha_emision, cert.descargado,
+                c.nombre AS curso_nombre, m.calificacion_final
+         FROM certificados cert
+         JOIN matriculas m ON cert.matricula_id = m.id
+         JOIN cursos c ON m.curso_id = c.id
+         JOIN estudiantes e ON m.estudiante_id = e.id
+         WHERE e.usuario_id = ? AND m.estado = 'completada'
+         ORDER BY cert.fecha_emision DESC`,
+        [uid],
+      ),
+      query(
+        `SELECT cl.id, cl.titulo, cl.fecha, cl.hora_inicio, cl.hora_fin, cl.tipo, cl.enlace_virtual, cl.ubicacion,
+                c.id AS curso_id, c.nombre AS curso_nombre
+         FROM clases cl
+         INNER JOIN cursos c ON c.id = cl.curso_id
+         INNER JOIN matriculas m ON m.curso_id = c.id
+         INNER JOIN estudiantes e ON e.id = m.estudiante_id
+         WHERE e.usuario_id = ? AND cl.fecha >= CURDATE() AND m.estado = 'activa'
+         ORDER BY cl.fecha ASC, cl.hora_inicio ASC`,
+        [uid],
+      ),
+      query(
+        `SELECT id, tipo, titulo, mensaje, entidad_tipo, entidad_id, leida, fecha_creacion
+         FROM notificaciones
+         WHERE usuario_id = ?
+         ORDER BY fecha_creacion DESC
+         LIMIT 100`,
+        [uid],
+      ),
+    ]);
+
+    if (!perfil) return res.status(404).json({ error: 'Estudiante no encontrado' });
+
+    return res.json({
+      perfil,
+      cursos: cursosPack.cursos,
+      certificados: Array.isArray(certificados) ? certificados : [],
+      calendario: Array.isArray(calendario) ? calendario : [],
+      notificaciones: Array.isArray(notificaciones) ? notificaciones : [],
+    });
+  } catch (error) {
+    console.error('Error student/inicio:', error);
+    return res.status(500).json({ error: 'Error al cargar panel estudiante' });
+  }
+});
+
+router.get('/student/mis-cursos', async (req, res) => {
+  if (!hasRole(req.user, 'estudiante')) return res.status(403).json({ error: 'No autorizado' });
+
+  const { cursos } = await fetchStudentCursosWithProgress(req.user.id);
+  if (cursos.length === 0) {
+    const studentRows = await query('SELECT id FROM estudiantes WHERE usuario_id = ? LIMIT 1', [req.user.id]);
+    if (studentRows.length === 0) return res.status(404).json({ error: 'Estudiante no encontrado' });
   }
 
-  return res.json(cursosConProgreso);
+  return res.json(cursos);
 });
 
 router.get('/student/calendario', async (req, res) => {

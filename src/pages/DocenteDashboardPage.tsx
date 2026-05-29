@@ -5,12 +5,13 @@ import { Toast } from '../components/common/Toast'
 import {
   createTeacherClase,
   getTeacherCursoEstudiantes,
-  getTeacherCursos,
+  getTeacherInicio,
   getTeacherPerfil,
   registrarNota,
   subscribeRealtime,
   updateTeacherPerfil,
 } from '../services/apiClient'
+import { loadSessionUser, loadStoredProfilePhoto } from '../state/authSession'
 import { BookOpen, Camera, ChevronDown, FolderOpen, UserCircle2 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { withOptimisticUpdate } from '../utils/optimistic'
@@ -83,11 +84,15 @@ export function DocenteDashboardPage() {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    const userId = loadSessionUser()?.id as number | string | undefined
+    const fotoLocal = loadStoredProfilePhoto(userId)
+    if (fotoLocal) setFotoPerfil(fotoLocal)
+
+    void (async () => {
       try {
-        const perfil = (await getTeacherPerfil()) as Record<string, unknown>
-        const cursosApi = (await getTeacherCursos()) as unknown
+        const inicio = await getTeacherInicio()
         if (cancelled) return
+        const perfil = inicio.perfil
         if (perfil?.nombre) setSaludo(`Hola, ${String(perfil.nombre)}`)
         setPerfilForm({
           nombre: String(perfil?.nombre || ''),
@@ -96,8 +101,19 @@ export function DocenteDashboardPage() {
           telefono: String(perfil?.telefono || ''),
           especialidad: String(perfil?.especialidad || ''),
         })
-        setFotoPerfil(typeof perfil.foto_url === 'string' ? perfil.foto_url : '')
-        const cursosNormalizados = Array.isArray(cursosApi) ? (cursosApi as TeacherCourse[]) : []
+        if (typeof perfil?.foto_url === 'string' && perfil.foto_url) {
+          setFotoPerfil(perfil.foto_url)
+        } else if (!fotoLocal) {
+          void getTeacherPerfil({ includeFoto: true })
+            .then((p) => {
+              if (cancelled) return
+              const row = p as Record<string, unknown>
+              const url = typeof row?.foto_url === 'string' ? row.foto_url : ''
+              if (url) setFotoPerfil(url)
+            })
+            .catch(() => {})
+        }
+        const cursosNormalizados = Array.isArray(inicio.cursos) ? (inicio.cursos as TeacherCourse[]) : []
         setCursos(cursosNormalizados)
         setNCursos(cursosNormalizados.length)
         if (cursosNormalizados.length > 0) setCursoActivoId(cursosNormalizados[0].id)

@@ -1,5 +1,6 @@
 import { resolveApiBaseUrl } from '../config/apiBaseUrl';
 import { normalizeApiBase } from '../config/normalizeApiBase';
+import { getCached, invalidateCache, setCached } from './apiCache';
 import { clearSession, getSessionToken } from '../state/authSession';
 
 function realtimeBaseFromApi(apiBase: string): string {
@@ -18,6 +19,10 @@ interface FetchOptions extends RequestInit {
 type ApiCallOptions = FetchOptions & {
   skipAuth?: boolean;
   noSessionRedirect?: boolean;
+  /** No usar caché en memoria (p. ej. tras guardar perfil). */
+  noCache?: boolean;
+  /** TTL de caché GET en ms (default 45s). */
+  cacheTtlMs?: number;
 };
 
 const REQUEST_TIMEOUT_MS = 25_000;
@@ -26,8 +31,17 @@ async function apiCall<T>(
   endpoint: string,
   options: ApiCallOptions = {}
 ): Promise<T> {
-  const { skipAuth = false, noSessionRedirect = false, ...fetchOptions } = options;
+  const {
+    skipAuth = false,
+    noSessionRedirect = false,
+    noCache = false,
+    cacheTtlMs,
+    ...fetchOptions
+  } = options;
   const token = skipAuth ? null : getSessionToken();
+  const method = String(fetchOptions.method || 'GET').toUpperCase();
+  const base = getApiBase();
+  const cacheKey = `${method}:${base}${endpoint}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -38,7 +52,11 @@ async function apiCall<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const base = getApiBase();
+  if (method === 'GET' && token && !noCache) {
+    const hit = getCached<T>(cacheKey);
+    if (hit !== undefined) return hit;
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -78,7 +96,15 @@ async function apiCall<T>(
     throw new Error(`${main}${hint}${detail}`);
   }
 
-  return response.json() as Promise<T>;
+  const data = (await response.json()) as T;
+
+  if (method === 'GET' && token && !noCache) {
+    setCached(cacheKey, data, cacheTtlMs);
+  } else if (method !== 'GET' && token) {
+    invalidateCache(`GET:${base}`);
+  }
+
+  return data;
 }
 
 export type LoginUsuario = {
@@ -113,8 +139,31 @@ export async function getAuthMe() {
 }
 
 // ============ STUDENT ENDPOINTS ============
-export async function getStudentPerfil() {
-  return apiCall('/student/perfil');
+export async function getStudentPerfil(opts?: { includeFoto?: boolean }) {
+  const q = opts?.includeFoto ? '?foto=1' : '';
+  return apiCall(`/student/perfil${q}`);
+}
+
+export type StudentInicioPayload = {
+  perfil: Record<string, unknown>
+  cursos: Array<{
+    id: number
+    nombre: string
+    codigo?: string
+    descripcion?: string
+    estado?: string
+    calificacion_final?: number | null
+    total_modulos?: number
+    progreso?: number
+  }>
+  certificados: unknown[]
+  calendario: unknown[]
+  notificaciones: unknown[]
+}
+
+export async function getStudentInicio(opts?: { includeFoto?: boolean }) {
+  const q = opts?.includeFoto ? '?foto=1' : '';
+  return apiCall<StudentInicioPayload>(`/academico/student/inicio${q}`);
 }
 
 export async function updateStudentPerfil(data: Record<string, unknown>) {
@@ -147,8 +196,27 @@ export async function downloadStudentCertificado(certificadoId: number) {
 }
 
 // ============ TEACHER ENDPOINTS ============
-export async function getTeacherPerfil() {
-  return apiCall('/teacher/perfil');
+export async function getTeacherPerfil(opts?: { includeFoto?: boolean }) {
+  const q = opts?.includeFoto ? '?foto=1' : '';
+  return apiCall(`/teacher/perfil${q}`);
+}
+
+export type TeacherInicioPayload = {
+  perfil: Record<string, unknown>
+  cursos: Array<{
+    id: number
+    nombre: string
+    codigo?: string
+    descripcion?: string
+    creditos?: number
+    capacidad?: number
+    estudiantes_inscritos?: number
+  }>
+}
+
+export async function getTeacherInicio(opts?: { includeFoto?: boolean }) {
+  const q = opts?.includeFoto ? '?foto=1' : '';
+  return apiCall<TeacherInicioPayload>(`/teacher/inicio${q}`);
 }
 
 export async function updateTeacherPerfil(data: Record<string, unknown>) {

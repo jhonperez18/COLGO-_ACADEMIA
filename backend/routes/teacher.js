@@ -3,8 +3,6 @@ import { query } from '../db.js';
 import { authorizeRole } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 import { broadcastSse } from '../realtime/sseHub.js';
-import { ensureSchemaRuntime } from '../schemaRuntime.js';
-
 const router = express.Router();
 
 const MAX_FOTO_CHARS = 800000;
@@ -18,24 +16,29 @@ router.use(authorizeRole('docente'));
  */
 router.get('/perfil', async (req, res) => {
   try {
-    await ensureSchemaRuntime();
+    const includeFoto = String(req.query.foto || '') === '1';
     const docentes = await query(
-      'SELECT * FROM docentes WHERE usuario_id = ?',
-      [req.user.id]
+      `SELECT id, usuario_id, nombre, apellido, documento, telefono, especialidad
+       FROM docentes WHERE usuario_id = ? LIMIT 1`,
+      [req.user.id],
     );
 
     if (docentes.length === 0) {
       return res.status(404).json({ error: 'Perfil de docente no encontrado' });
     }
 
-    const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [req.user.id]);
-    let foto_url = null;
-    if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
-      const fv = uRows[0].foto_url;
-      foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+    let foto_url;
+    if (includeFoto) {
+      const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [req.user.id]);
+      if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
+        const fv = uRows[0].foto_url;
+        foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+      } else {
+        foto_url = null;
+      }
     }
 
-    res.json({ ...docentes[0], foto_url });
+    res.json({ ...docentes[0], ...(includeFoto ? { foto_url } : {}) });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Error al obtener perfil' });
@@ -57,7 +60,6 @@ router.put(
   ],
   async (req, res) => {
     try {
-      await ensureSchemaRuntime();
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -118,6 +120,57 @@ router.put(
     }
   },
 );
+
+/**
+ * GET /api/teacher/inicio
+ * Perfil + cursos en una sola petición (menos latencia en producción).
+ */
+router.get('/inicio', async (req, res) => {
+  try {
+    const includeFoto = String(req.query.foto || '') === '1';
+    const [docentes, cursos] = await Promise.all([
+      query(
+        `SELECT id, usuario_id, nombre, apellido, documento, telefono, especialidad
+         FROM docentes WHERE usuario_id = ? LIMIT 1`,
+        [req.user.id],
+      ),
+      query(
+        `SELECT c.id, c.nombre, c.codigo, c.descripcion, c.creditos, c.capacidad,
+                COUNT(m.id) as estudiantes_inscritos
+         FROM cursos c
+         JOIN docentes d ON c.docente_id = d.id
+         LEFT JOIN matriculas m ON c.id = m.curso_id AND m.estado = 'activa'
+         WHERE d.usuario_id = ?
+         GROUP BY c.id
+         ORDER BY c.nombre`,
+        [req.user.id],
+      ),
+    ]);
+
+    if (!Array.isArray(docentes) || docentes.length === 0) {
+      return res.status(404).json({ error: 'Perfil de docente no encontrado' });
+    }
+
+    let foto_url;
+    if (includeFoto) {
+      const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [req.user.id]);
+      if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
+        const fv = uRows[0].foto_url;
+        foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
+      } else {
+        foto_url = null;
+      }
+    }
+
+    return res.json({
+      perfil: { ...docentes[0], ...(includeFoto ? { foto_url } : {}) },
+      cursos: Array.isArray(cursos) ? cursos : [],
+    });
+  } catch (error) {
+    console.error('Error teacher/inicio:', error);
+    return res.status(500).json({ error: 'Error al cargar panel docente' });
+  }
+});
 
 /**
  * GET /api/teacher/cursos

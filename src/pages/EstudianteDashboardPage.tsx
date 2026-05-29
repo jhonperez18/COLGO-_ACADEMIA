@@ -5,15 +5,15 @@ import { Toast } from '../components/common/Toast'
 import {
   downloadStudentCertificado,
   getStudentCalendario,
-  getStudentCertificados,
   getStudentCursoNotas,
-  getStudentMisCursos,
+  getStudentInicio,
   getStudentNotificaciones,
   getStudentPerfil,
   updateStudentPerfil,
   marcarNotificacionLeida,
   subscribeRealtime,
 } from '../services/apiClient'
+import { loadSessionUser, loadStoredProfilePhoto } from '../state/authSession'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Camera, UserCircle2 } from 'lucide-react'
 import { withOptimisticUpdate } from '../utils/optimistic'
@@ -92,41 +92,50 @@ export function EstudianteDashboardPage() {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    const userId = loadSessionUser()?.id as number | string | undefined
+    const fotoLocal = loadStoredProfilePhoto(userId)
+    if (fotoLocal) setFotoPerfil(fotoLocal)
+
+    void (async () => {
       try {
-        const perfil = (await getStudentPerfil()) as { nombre?: string }
-        const cursosApi = (await getStudentMisCursos()) as unknown
-        const certsApi = (await getStudentCertificados()) as unknown
-        const calendarioApi = (await getStudentCalendario()) as unknown
-        const notificacionesApi = (await getStudentNotificaciones()) as unknown
+        const inicio = await getStudentInicio()
         if (cancelled) return
-        if (perfil?.nombre) setSaludo(`Hola, ${perfil.nombre}`)
+        const perfil = inicio.perfil
+        if (perfil?.nombre) setSaludo(`Hola, ${String(perfil.nombre)}`)
         setPerfilForm({
-          nombre: String((perfil as Record<string, unknown>)?.nombre || ''),
-          apellido: String((perfil as Record<string, unknown>)?.apellido || ''),
-          documento: String((perfil as Record<string, unknown>)?.documento || ''),
-          tipo_documento: String((perfil as Record<string, unknown>)?.tipo_documento || ''),
-          telefono: String((perfil as Record<string, unknown>)?.telefono || ''),
-          direccion: String((perfil as Record<string, unknown>)?.direccion || ''),
-          pais: String((perfil as Record<string, unknown>)?.pais || ''),
-          departamento: String((perfil as Record<string, unknown>)?.departamento || ''),
-          municipio: String((perfil as Record<string, unknown>)?.municipio || ''),
-          ciudad: String((perfil as Record<string, unknown>)?.ciudad || ''),
-          fecha_nacimiento: String((perfil as Record<string, unknown>)?.fecha_nacimiento || '').slice(0, 10),
-          estado_civil: String((perfil as Record<string, unknown>)?.estado_civil || ''),
+          nombre: String(perfil?.nombre || ''),
+          apellido: String(perfil?.apellido || ''),
+          documento: String(perfil?.documento || ''),
+          tipo_documento: String(perfil?.tipo_documento || ''),
+          telefono: String(perfil?.telefono || ''),
+          direccion: String(perfil?.direccion || ''),
+          pais: String(perfil?.pais || ''),
+          departamento: String(perfil?.departamento || ''),
+          municipio: String(perfil?.municipio || ''),
+          ciudad: String(perfil?.ciudad || ''),
+          fecha_nacimiento: String(perfil?.fecha_nacimiento || '').slice(0, 10),
+          estado_civil: String(perfil?.estado_civil || ''),
         })
-        setFotoPerfil(
-          typeof (perfil as Record<string, unknown>)?.foto_url === 'string'
-            ? String((perfil as Record<string, unknown>).foto_url)
-            : '',
-        )
-        const cursosNormalizados = Array.isArray(cursosApi) ? (cursosApi as StudentCourse[]) : []
+        if (typeof perfil?.foto_url === 'string' && perfil.foto_url) {
+          setFotoPerfil(perfil.foto_url)
+        } else if (!fotoLocal) {
+          void getStudentPerfil({ includeFoto: true })
+            .then((p) => {
+              if (cancelled) return
+              const url = typeof (p as Record<string, unknown>)?.foto_url === 'string' ? String((p as Record<string, unknown>).foto_url) : ''
+              if (url) setFotoPerfil(url)
+            })
+            .catch(() => {})
+        }
+        const cursosNormalizados = Array.isArray(inicio.cursos) ? (inicio.cursos as StudentCourse[]) : []
         setCursos(cursosNormalizados)
         setNCursos(cursosNormalizados.length)
         if (cursosNormalizados.length > 0) setCursoActivoId(cursosNormalizados[0].id)
-        setCertificados(Array.isArray(certsApi) ? (certsApi as StudentCertificate[]) : [])
-        setCalendario(Array.isArray(calendarioApi) ? (calendarioApi as typeof calendario) : [])
-        setNotificaciones(Array.isArray(notificacionesApi) ? (notificacionesApi as typeof notificaciones) : [])
+        setCertificados(Array.isArray(inicio.certificados) ? (inicio.certificados as StudentCertificate[]) : [])
+        setCalendario(Array.isArray(inicio.calendario) ? (inicio.calendario as typeof calendario) : [])
+        setNotificaciones(
+          Array.isArray(inicio.notificaciones) ? (inicio.notificaciones as typeof notificaciones) : [],
+        )
       } catch {
         if (!cancelled) {
           setError('No se pudo conectar con el API. Ejecuta el backend (npm run server) en el puerto 3001.')

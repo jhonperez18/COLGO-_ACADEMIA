@@ -65,15 +65,12 @@ const pool = mysql.createPool({
 });
 
 export async function query(sql, args = []) {
-  const connection = await pool.getConnection();
   try {
-    const [results] = await connection.query(sql, args);
+    const [results] = await pool.query(sql, args);
     return results;
   } catch (error) {
     console.error('Error en query:', error?.code || error?.message || error);
     throw error;
-  } finally {
-    connection.release();
   }
 }
 
