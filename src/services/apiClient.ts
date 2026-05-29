@@ -77,10 +77,9 @@ async function apiCall<T>(
     clearTimeout(timeoutId);
   }
 
-  const isAuthFailure = response.status === 401 || response.status === 403;
-  if (isAuthFailure && token) {
+  if (response.status === 401 && token && !noSessionRedirect) {
     clearSession();
-    invalidateCache();
+    window.location.href = '/login';
     throw new Error('Sesión expirada');
   }
 
@@ -293,13 +292,13 @@ export async function guardarCalificacionFinal(
 // ============ ADMIN ENDPOINTS ============
 export async function getAdminEstadisticas() {
   return apiCall<{
-    estudiantes: number;
-    docentes: number;
-    cursos: number;
-    matriculasActivas: number;
-    usuarios?: number;
-    ventas?: number;
-  }>('/admin/estadisticas');
+    estudiantes: number
+    docentes: number
+    cursos: number
+    matriculasActivas: number
+    usuarios?: number
+    ventas?: number
+  }>('/admin/estadisticas', { noCache: true })
 }
 
 export async function getAdminEstudiantes() {

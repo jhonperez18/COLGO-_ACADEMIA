@@ -17,22 +17,21 @@ type GateState = 'checking' | 'allowed' | 'denied'
 
 export function ProtectedRoute({ children, rol }: ProtectedRouteProps) {
   const location = useLocation()
-  const [gate, setGate] = useState<GateState>(() =>
-    hasValidLocalSession() ? 'checking' : 'denied',
-  )
+  const [gate, setGate] = useState<GateState>('checking')
+  const usuario = gate === 'allowed' ? loadSessionUser() : null
 
   useEffect(() => {
-    if (!hasValidLocalSession()) {
-      setGate('denied')
-      return
-    }
-
     let cancelado = false
-    setGate('checking')
+  setGate('checking')
 
-    void ensureServerSession().then((ok) => {
+    void (async () => {
+      if (!hasValidLocalSession()) {
+        if (!cancelado) setGate('denied')
+        return
+      }
+      const ok = await ensureServerSession()
       if (!cancelado) setGate(ok ? 'allowed' : 'denied')
-    })
+    })()
 
     return () => {
       cancelado = true
@@ -46,8 +45,6 @@ export function ProtectedRoute({ children, rol }: ProtectedRouteProps) {
       </div>
     )
   }
-
-  const usuario = loadSessionUser()
 
   if (gate === 'denied' || !usuario) {
     return (

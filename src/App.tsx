@@ -115,7 +115,7 @@ function App() {
       <Route path="/student-dashboard" element={<Navigate to="/estudiante/dashboard" replace />} />
       <Route path="/teacher-dashboard" element={<Navigate to="/docente/dashboard" replace />} />
       {/* Raíz: siempre pantalla de credenciales (limpia sesión local vía LoginPage + force_login) */}
-      <Route path="/" element={<Navigate to="/login?force_login=1" replace />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
 
       {/* Fallback: siempre login */}
       <Route path="*" element={<Navigate to="/login" replace />} />

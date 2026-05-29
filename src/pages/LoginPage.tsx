@@ -3,12 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/common/Button'
 import { getApiBase, login } from '../services/apiClient'
 import { resolveApiBaseUrl } from '../config/apiBaseUrl'
-import {
-  getDashboardPathByRole,
-  hasValidLocalSession,
-  loadSessionUser,
-  persistSession,
-} from '../state/authSession'
+import { getDashboardPathByRole, persistSession } from '../state/authSession'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -54,18 +49,6 @@ export function LoginPage() {
   useEffect(() => {
     void fetch(`${getApiBase()}/health`, { method: 'GET' }).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    if (!hasValidLocalSession()) return
-    const usuario = loadSessionUser()
-    if (!usuario) return
-    const from = (location.state as { from?: string } | null)?.from
-    const destino =
-      from && from !== '/login' && !from.startsWith('/login?')
-        ? from
-        : getDashboardPathByRole(usuario.rol)
-    navigate(destino, { replace: true })
-  }, [location.state, navigate])
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
