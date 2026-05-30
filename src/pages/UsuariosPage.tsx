@@ -77,7 +77,9 @@ export default function UsuariosPage() {
     checking: boolean
     cedulaExists: boolean
     emailExists: boolean
-  }>({ checking: false, cedulaExists: false, emailExists: false })
+    emailRol: string | null
+    emailId: number | null
+  }>({ checking: false, cedulaExists: false, emailExists: false, emailRol: null, emailId: null })
 
   useEffect(() => {
     setVistaActiva(vistaInicial)
@@ -111,7 +113,7 @@ export default function UsuariosPage() {
     setMensajeExito(null)
     setAdvertenciaCorreo(null)
     setDetalleCorreo(null)
-    setValidacion({ checking: false, cedulaExists: false, emailExists: false })
+    setValidacion({ checking: false, cedulaExists: false, emailExists: false, emailRol: null, emailId: null })
     setForm({ ...formVacio, rol: rolModulo ?? formVacio.rol })
     setShowCreateModal(true)
   }
@@ -173,7 +175,7 @@ export default function UsuariosPage() {
     const email = limpiarTexto(form.email).toLowerCase()
 
     if (!cedula && !email) {
-      setValidacion({ checking: false, cedulaExists: false, emailExists: false })
+      setValidacion({ checking: false, cedulaExists: false, emailExists: false, emailRol: null, emailId: null })
       return
     }
 
@@ -186,6 +188,8 @@ export default function UsuariosPage() {
             checking: false,
             cedulaExists: Boolean(result.cedulaExists),
             emailExists: Boolean(result.emailExists),
+            emailRol: result.emailRol ?? null,
+            emailId: result.emailId ?? null,
           })
         } catch {
           setValidacion((prev) => ({ ...prev, checking: false }))
@@ -218,7 +222,13 @@ export default function UsuariosPage() {
         return
       }
       if (validacion.cedulaExists || validacion.emailExists) {
-        setErrorForm('Corrige duplicados antes de guardar (cédula/correo).')
+        const partes: string[] = []
+        if (validacion.cedulaExists) partes.push('la cédula ya está en el sistema')
+        if (validacion.emailExists) {
+          const rolTxt = validacion.emailRol ? ` (${validacion.emailRol})` : ''
+          partes.push(`el correo ya está registrado${rolTxt}`)
+        }
+        setErrorForm(`No se puede crear: ${partes.join(' y ')}. Usa otros datos o elimina el usuario existente en la lista.`)
         return
       }
       setGuardando(true)
@@ -476,11 +486,12 @@ export default function UsuariosPage() {
             />
             {validacion.cedulaExists ? (
               <span className="mt-1 block text-xs text-red-700">Esta cédula ya existe en el sistema.</span>
-            ) : (
+            ) : null}
+            {!validacion.cedulaExists && !validacion.emailExists ? (
               <span className="mt-1 block text-[11px] text-[var(--muted)]">
                 El usuario y la contraseña inicial serán la cédula. Podrá cambiarla después desde su perfil.
               </span>
-            )}
+            ) : null}
           </label>
 
           <label className="block">
@@ -496,7 +507,10 @@ export default function UsuariosPage() {
               autoComplete="email"
             />
             {validacion.emailExists ? (
-              <span className="mt-1 block text-xs text-red-700">Este correo ya está registrado.</span>
+              <span className="mt-1 block text-xs text-red-700">
+                Este correo ya está registrado
+                {validacion.emailRol ? ` como ${rolEtiqueta(validacion.emailRol)}` : ''}.
+              </span>
             ) : null}
           </label>
 

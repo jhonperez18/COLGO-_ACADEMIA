@@ -679,6 +679,8 @@ export async function validateUsuarioAdmin(params: { cedula?: string; email?: st
   return apiCall<{
     cedulaExists: boolean;
     emailExists: boolean;
+    emailId?: number | null;
+    emailRol?: string | null;
     available: boolean;
   }>(`/usuarios/validate?${query.toString()}`);
 }

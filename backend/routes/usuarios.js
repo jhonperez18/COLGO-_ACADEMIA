@@ -130,30 +130,22 @@ function resolveLoginUsuario(rawUsuario, documento) {
 async function insertPersonaRecord(table, { usuario_id, nombre, apellido, documento, usuarioLogin }) {
   await ensurePersonaLoginUsuarioColumns()
   const loginUsuario = resolveLoginUsuario(usuarioLogin, documento)
-  const fields = ['usuario_id', 'nombre', 'apellido', 'documento']
-  const values = [usuario_id, nombre || '—', apellido || '—', documento || null]
-  const cols = await getExistingColumnNames(table)
-  if (loginUsuario && cols.has('usuario')) {
-    fields.push('usuario')
-    values.push(loginUsuario)
+  const baseFields = ['usuario_id', 'nombre', 'apellido', 'documento']
+  const baseValues = [usuario_id, nombre || '—', apellido || '—', documento || null]
+  const runInsert = (fields, values) => {
+    const placeholders = fields.map(() => '?').join(', ')
+    const quoted = fields.map((c) => `\`${c}\``).join(', ')
+    return query(`INSERT INTO \`${table}\` (${quoted}) VALUES (${placeholders})`, values)
   }
-  const runInsert = (f, v) => {
-    const placeholders = f.map(() => '?').join(', ')
-    const quoted = f.map((c) => `\`${c}\``).join(', ')
-    return query(`INSERT INTO \`${table}\` (${quoted}) VALUES (${placeholders})`, v)
-  }
-  try {
-    return await runInsert(fields, values)
-  } catch (err) {
-    if (err?.code !== 'ER_NO_DEFAULT_FOR_FIELD' || !String(err.sqlMessage || '').includes("'usuario'") || !loginUsuario) {
-      throw err
+  if (loginUsuario) {
+    try {
+      return await runInsert([...baseFields, 'usuario'], [...baseValues, loginUsuario])
+    } catch (err) {
+      const msg = String(err?.sqlMessage || err?.message || '')
+      if (err?.code !== 'ER_BAD_FIELD_ERROR' && !msg.includes("Unknown column 'usuario'")) throw err
     }
-    if (!fields.includes('usuario')) {
-      fields.push('usuario')
-      values.push(loginUsuario)
-    }
-    return runInsert(fields, values)
   }
+  return runInsert(baseFields, baseValues)
 }
 
 async function backfillPersonaNombresVacios() {
@@ -280,28 +272,23 @@ async function ensureUsuariosLoginColumn() {
 
 async function insertAuthUsuario({ email, password_hash, rol, activo, cambiar_password, loginUsuario }) {
   await ensureUsuariosLoginColumn()
-  const cols = await getExistingColumnNames('usuarios')
   const login = String(loginUsuario ?? '').trim()
-  const fields = ['email', 'password_hash', 'rol', 'activo', 'cambiar_password']
-  const values = [email, password_hash, rol, activo, cambiar_password]
-  if (login && cols.has('usuario')) {
-    fields.push('usuario')
-    values.push(login)
+  const baseFields = ['email', 'password_hash', 'rol', 'activo', 'cambiar_password']
+  const baseValues = [email, password_hash, rol, activo, cambiar_password]
+  const runInsert = (fields, values) => {
+    const placeholders = fields.map(() => '?').join(', ')
+    const quoted = fields.map((c) => `\`${c}\``).join(', ')
+    return query(`INSERT INTO usuarios (${quoted}) VALUES (${placeholders})`, values)
   }
-  const placeholders = fields.map(() => '?').join(', ')
-  const quoted = fields.map((c) => `\`${c}\``).join(', ')
-  try {
-    return await query(`INSERT INTO usuarios (${quoted}) VALUES (${placeholders})`, values)
-  } catch (err) {
-    if (err?.code !== 'ER_NO_DEFAULT_FOR_FIELD' || !String(err.sqlMessage || '').includes("'usuario'") || !login) {
-      throw err
+  if (login) {
+    try {
+      return await runInsert([...baseFields, 'usuario'], [...baseValues, login])
+    } catch (err) {
+      const msg = String(err?.sqlMessage || err?.message || '')
+      if (err?.code !== 'ER_BAD_FIELD_ERROR' && !msg.includes("Unknown column 'usuario'")) throw err
     }
-    fields.push('usuario')
-    values.push(login)
-    const quotedRetry = fields.map((c) => `\`${c}\``).join(', ')
-    const placeholdersRetry = fields.map(() => '?').join(', ')
-    return query(`INSERT INTO usuarios (${quotedRetry}) VALUES (${placeholdersRetry})`, values)
   }
+  return runInsert(baseFields, baseValues)
 }
 
 /** SELECT de perfil estudiante solo con columnas que existan (evita 500 si migración a medias). */
@@ -1626,10 +1613,16 @@ router.get('/validate', async (req, res) => {
     await ensureSupportTables()
     let emailExists = false
     let cedulaExists = false
+    let emailRol = null
+    let emailId = null
 
     if (email) {
-      const dupEmail = await query('SELECT id FROM usuarios WHERE LOWER(email) = LOWER(?) LIMIT 1', [email])
-      emailExists = Array.isArray(dupEmail) && dupEmail.length > 0
+      const dupEmail = await query('SELECT id, rol FROM usuarios WHERE LOWER(email) = LOWER(?) LIMIT 1', [email])
+      if (Array.isArray(dupEmail) && dupEmail.length > 0) {
+        emailExists = true
+        emailId = Number(dupEmail[0].id)
+        emailRol = String(dupEmail[0].rol || '')
+      }
     }
 
     if (cedula) {
@@ -1639,6 +1632,8 @@ router.get('/validate', async (req, res) => {
     return res.json({
       cedulaExists,
       emailExists,
+      emailId,
+      emailRol,
       available: !cedulaExists && !emailExists,
     })
   } catch (err) {
