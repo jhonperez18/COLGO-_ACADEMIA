@@ -94,11 +94,13 @@ async function apiCall<T>(
       error?: string;
       hint?: string;
       detail?: string;
+      emailDetail?: string;
     };
     const main = error.error || error.message || `Error ${response.status}`;
     const hint = error.hint ? `\n\n${error.hint}` : '';
     const detail = error.detail ? `\n\n${error.detail}` : '';
-    throw new Error(`${main}${hint}${detail}`);
+    const emailDetail = error.emailDetail ? `\n\nDetalle: ${error.emailDetail}` : '';
+    throw new Error(`${main}${hint}${detail}${emailDetail}`);
   }
 
   const data = (await response.json()) as T;
@@ -251,9 +253,9 @@ export async function getTeacherReporte(cursoId: number) {
 }
 
 /** Perfil propio en servidor (rol `staff` o `admin`): `GET /api/auth/me/perfil` */
-export async function getUsuariosMePerfil(opts?: { includeFoto?: boolean }) {
+export async function getUsuariosMePerfil(opts?: { includeFoto?: boolean; noSessionRedirect?: boolean }) {
   const q = opts?.includeFoto ? '?foto=1' : '';
-  return apiCall(`/auth/me/perfil${q}`);
+  return apiCall(`/auth/me/perfil${q}`, { noSessionRedirect: opts?.noSessionRedirect });
 }
 
 export async function updateUsuariosMePerfil(data: Record<string, unknown>) {
@@ -533,8 +535,11 @@ export async function listLogsAdmin() {
   return apiCall<SistemaLog[]>('/usuarios/logs');
 }
 
-export async function listRegistroSistema(limit = 100) {
+export async function listRegistroSistema(options: { limit?: number; desde?: string; hasta?: string } = {}) {
+  const { limit = 100, desde, hasta } = options;
   const q = new URLSearchParams({ limit: String(limit) });
+  if (desde) q.set('desde', desde);
+  if (hasta) q.set('hasta', hasta);
   return apiCall<RegistroSistemaItem[]>(`/usuarios/registro?${q}`);
 }
 

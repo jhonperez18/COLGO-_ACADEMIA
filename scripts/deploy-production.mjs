@@ -8,8 +8,9 @@ import { execSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import dotenv from 'dotenv'
 
-const PRODUCTION_ORIGIN = 'https://project-bm9ko.vercel.app'
-const VERCEL_PROJECT = 'project-bm9ko'
+const PRODUCTION_ORIGIN = process.env.PRODUCTION_ORIGIN || 'https://project-bm9ko.vercel.app'
+const VERCEL_PROJECT = process.env.VERCEL_PROJECT || 'project-bm9ko'
+const EXTRA_CORS_ORIGINS = 'https://colgo-academi-saas.vercel.app,https://project-bm9ko.vercel.app'
 
 function loadEnv() {
   const merged = {}
@@ -194,7 +195,7 @@ function buildProductionEnv(env, db) {
     NODE_ENV: 'production',
     VITE_API_URL: '/api',
     FRONTEND_URL: PRODUCTION_ORIGIN,
-    CORS_ORIGIN: `${PRODUCTION_ORIGIN},https://colgo-academi-saas.vercel.app,http://localhost:5173,http://localhost:5174`,
+    CORS_ORIGIN: `${PRODUCTION_ORIGIN},${EXTRA_CORS_ORIGINS},http://localhost:5173,http://localhost:5174`,
     CORS_ALLOW_VERCEL: 'true',
     JWT_SECRET: String(env.JWT_SECRET || 'colgo-prod-jwt-2026-stable-do-not-rotate').trim(),
     JWT_EXPIRES_IN: String(env.JWT_EXPIRES_IN || '7d').trim(),

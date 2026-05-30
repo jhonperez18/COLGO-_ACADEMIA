@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { Button } from '../components/common/Button'
 import { Modal } from '../components/common/Modal'
 import { Card } from '../components/common/Card'
@@ -9,12 +10,9 @@ import { DataTable, type Column } from '../components/common/Table'
 import {
   createUsuarioAdmin,
   deleteUsuarioAdmin,
-  listLogsAdmin,
   listUsuariosAdmin,
-  getUsuariosAnomaliasSeguridad,
   validateUsuarioAdmin,
   type RolApi,
-  type SistemaLog,
   type UsuarioListaItem,
 } from '../services/apiClient'
 
@@ -49,20 +47,21 @@ export default function UsuariosPage() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const vistaQuery = searchParams.get('vista')
+  const rolDesdeRuta: ViewFiltro | null = location.pathname.endsWith('/docentes')
+    ? 'docente'
+    : location.pathname.endsWith('/estudiantes-gestion') || location.pathname.endsWith('/estudiantes')
+      ? 'estudiante'
+      : location.pathname.endsWith('/staff')
+        ? 'staff'
+        : null
   const vistaInicial: ViewFiltro =
-    vistaQuery === 'admin' || vistaQuery === 'docente' || vistaQuery === 'estudiante' || vistaQuery === 'staff'
+    rolDesdeRuta ??
+    (vistaQuery === 'admin' || vistaQuery === 'docente' || vistaQuery === 'estudiante' || vistaQuery === 'staff'
       ? vistaQuery
-      : location.pathname.endsWith('/docentes')
-        ? 'docente'
-        : location.pathname.endsWith('/estudiantes-gestion') || location.pathname.endsWith('/estudiantes')
-          ? 'estudiante'
-          : location.pathname.endsWith('/staff')
-            ? 'staff'
-          : 'todos'
+      : 'todos')
   const [usuarios, setUsuarios] = useState<UsuarioListaItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [errorLista, setErrorLista] = useState<string | null>(null)
-  const [filtroRol, setFiltroRol] = useState<'todos' | RolApi>('todos')
   const [vistaActiva, setVistaActiva] = useState<ViewFiltro>(vistaInicial)
   const [busqueda, setBusqueda] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -74,8 +73,6 @@ export default function UsuariosPage() {
   const [advertenciaCorreo, setAdvertenciaCorreo] = useState<string | null>(null)
   const [detalleCorreo, setDetalleCorreo] = useState<string | null>(null)
   const [eliminandoId, setEliminandoId] = useState<number | null>(null)
-  const [logs, setLogs] = useState<SistemaLog[]>([])
-  const [anomalias, setAnomalias] = useState<Array<{ usuario_id: number | null; total_fallos: number }>>([])
   const [validacion, setValidacion] = useState<{
     checking: boolean
     cedulaExists: boolean
@@ -100,6 +97,24 @@ export default function UsuariosPage() {
   const esModuloStaff = vistaActiva === 'staff'
   const esModuloRol = esModuloDocentes || esModuloEstudiantes || esModuloStaff
   const esVistaNuevoRegistro = !esModuloRol
+
+  const rolModulo: RolApi | null = esModuloEstudiantes
+    ? 'estudiante'
+    : esModuloDocentes
+      ? 'docente'
+      : esModuloStaff
+        ? 'staff'
+        : null
+
+  const abrirModalCrear = () => {
+    setErrorForm(null)
+    setMensajeExito(null)
+    setAdvertenciaCorreo(null)
+    setDetalleCorreo(null)
+    setValidacion({ checking: false, cedulaExists: false, emailExists: false })
+    setForm({ ...formVacio, rol: rolModulo ?? formVacio.rol })
+    setShowCreateModal(true)
+  }
 
   const panelBase = location.pathname.startsWith('/staff') ? '/staff' : '/admin'
   const origenLista = esVistaNuevoRegistro ? 'nuevo' : 'rol'
@@ -141,27 +156,6 @@ export default function UsuariosPage() {
     }, busqueda.trim() ? 280 : 0)
     return () => window.clearTimeout(timer)
   }, [cargar, busqueda, vistaActiva])
-
-  useEffect(() => {
-    if (esModuloRol) return
-    let cancel = false
-    void (async () => {
-      try {
-        const [logsData, anomaliasData] = await Promise.all([listLogsAdmin(), getUsuariosAnomaliasSeguridad()])
-        if (cancel) return
-        setLogs(Array.isArray(logsData) ? logsData : [])
-        setAnomalias(Array.isArray(anomaliasData) ? anomaliasData : [])
-      } catch {
-        if (!cancel) {
-          setLogs([])
-          setAnomalias([])
-        }
-      }
-    })()
-    return () => {
-      cancel = true
-    }
-  }, [esModuloRol])
 
   const onChange =
     (name: keyof FormState) =>
@@ -234,7 +228,7 @@ export default function UsuariosPage() {
           apellidos,
           cedula,
           email,
-          rol: form.rol,
+          rol: rolModulo ?? form.rol,
         }
         const res = await createUsuarioAdmin(payload)
         setErrorForm(null)
@@ -252,11 +246,11 @@ export default function UsuariosPage() {
           )
           if (res.emailDetail) setDetalleCorreo(res.emailDetail)
         }
-        setForm(formVacio)
+        setForm({ ...formVacio, rol: rolModulo ?? formVacio.rol })
         setShowCreateModal(false)
         await cargar(busqueda)
       } catch (err) {
-        setErrorForm(err instanceof Error ? err.message : 'Error al crear usuario')
+        setErrorForm(err instanceof Error ? err.message : 'No se pudo crear el usuario. Intenta de nuevo.')
       } finally {
         setGuardando(false)
       }
@@ -328,10 +322,7 @@ export default function UsuariosPage() {
       ),
   ]
 
-  const usuariosFiltrados = usuarios.filter((u) => {
-    if (!esModuloRol && filtroRol !== 'todos' && u.rol !== filtroRol) return false
-    return true
-  })
+  const usuariosFiltrados = usuarios
 
   return (
     <div className="flex flex-col gap-5">
@@ -361,71 +352,48 @@ export default function UsuariosPage() {
         )}
       >
         <div className="mb-4 flex flex-col gap-3">
-          {!esModuloRol ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)]/70 p-2">
-              <input
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre, cédula o correo"
-                className={cn(
-                  'h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)] sm:w-[24rem] lg:w-[28rem]',
-                  backofficeAmberInsetHairline,
-                )}
-              />
-              <select
-                value={filtroRol}
-                onChange={(e) => setFiltroRol(e.target.value as 'todos' | RolApi)}
-                className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)] sm:w-[12.5rem]"
-              >
-                <option value="todos">Todos los roles</option>
-                <option value="admin">Administrador</option>
-                <option value="docente">Docente</option>
-                <option value="estudiante">Estudiante</option>
-                <option value="staff">Staff</option>
-              </select>
-              <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-                <Button size="sm" variant={vistaActiva === 'todos' ? 'primary' : 'secondary'} onClick={() => cambiarVista('todos')}>
-                  Todos los usuarios
-                </Button>
-                <Button size="sm" variant={vistaActiva === 'admin' ? 'primary' : 'secondary'} onClick={() => cambiarVista('admin')}>
-                  Administradores
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => cambiarVista('docente')}>
-                  Docentes
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => cambiarVista('estudiante')}>
-                  Estudiantes
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setErrorForm(null)
-                    setMensajeExito(null)
-                    setAdvertenciaCorreo(null)
-                    setDetalleCorreo(null)
-                    setValidacion({ checking: false, cedulaExists: false, emailExists: false })
-                    setShowCreateModal(true)
-                  }}
-                >
-                  Nuevo usuario
-                </Button>
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)]/70 p-2">
+            <div className="relative w-full sm:w-[24rem] lg:w-[28rem]">
+              <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--muted)]">
+                <Search size={16} />
               </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <input
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar por nombre, cédula o correo"
                 className={cn(
-                  'h-10 justify-self-start rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)]',
+                  'h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] pl-9 pr-3 text-sm outline-none transition-colors focus:border-[var(--accent)]',
                   backofficeAmberInsetHairline,
-                  'w-full sm:col-span-3 sm:w-[28rem]',
                 )}
               />
             </div>
-          )}
+            <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+              {esVistaNuevoRegistro ? (
+                <>
+                  {(
+                    [
+                      { vista: 'todos' as const, label: 'Todos los usuarios' },
+                      { vista: 'admin' as const, label: 'Administradores' },
+                      { vista: 'docente' as const, label: 'Docentes' },
+                      { vista: 'estudiante' as const, label: 'Estudiantes' },
+                    ] as const
+                  ).map(({ vista, label }) => (
+                    <Button
+                      key={vista}
+                      size="sm"
+                      variant={vistaActiva === vista ? 'primary' : 'secondary'}
+                      onClick={() => cambiarVista(vista)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </>
+              ) : null}
+              <Button size="sm" variant={esModuloRol ? 'primary' : 'secondary'} onClick={abrirModalCrear}>
+                {esModuloRol ? 'Crear nuevo' : 'Nuevo usuario'}
+              </Button>
+            </div>
+          </div>
         </div>
 
         {errorLista ? (
@@ -446,58 +414,25 @@ export default function UsuariosPage() {
         )}
       </Card>
 
-      {!esModuloRol ? (
-        <Card className={backofficePanelCardClass}>
-          <div className="mb-3">
-            <p className="text-sm font-semibold text-[var(--text)]">Alertas de seguridad</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">Usuarios con 3+ intentos fallidos en las últimas 24h.</p>
-          </div>
-          <div className="max-h-40 overflow-auto rounded-xl border border-[var(--border)]">
-            {anomalias.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-[var(--muted)]">Sin anomalías detectadas.</p>
-            ) : (
-              anomalias.map((a, idx) => (
-                <div key={`${a.usuario_id ?? 'null'}-${idx}`} className="border-b border-[var(--border)] px-3 py-2 text-sm last:border-b-0">
-                  Usuario ID: {a.usuario_id ?? 'Desconocido'} · Intentos fallidos: {a.total_fallos}
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-      ) : null}
-
-      {!esModuloRol ? (
-        <Card className={backofficePanelCardClass}>
-          <div className="mb-3">
-            <p className="text-sm font-semibold text-[var(--text)]">Logs del sistema</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">Logs recientes del sistema (auditoría).</p>
-          </div>
-          <div className="max-h-64 overflow-auto rounded-xl border border-[var(--border)]">
-            {logs.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-[var(--muted)]">Sin eventos recientes.</p>
-            ) : (
-              logs.map((l) => (
-                <div key={l.id} className="border-b border-[var(--border)] px-3 py-2 text-sm last:border-b-0">
-                  <p className="font-medium text-[var(--text)]">{l.accion}</p>
-                  <p className="text-xs text-[var(--muted)]">
-                    {l.usuario_email || 'sistema'} · {l.tabla_afectada || 'general'} · {new Date(l.fecha).toLocaleString('es-CO')}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-      ) : null}
-
       <Modal
         open={showCreateModal}
         onClose={() => !guardando && setShowCreateModal(false)}
-        title="Nuevo usuario"
+        title={
+          esModuloEstudiantes
+            ? 'Nuevo estudiante'
+            : esModuloDocentes
+              ? 'Nuevo docente'
+              : esModuloStaff
+                ? 'Nuevo staff'
+                : 'Nuevo usuario'
+        }
         compact
       >
         <form onSubmit={handleCrearUsuario} className="flex flex-col gap-3">
           {errorForm ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-800">{errorForm}</div>
+            <div className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-800 whitespace-pre-wrap leading-relaxed">
+              {errorForm}
+            </div>
           ) : null}
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -541,7 +476,11 @@ export default function UsuariosPage() {
             />
             {validacion.cedulaExists ? (
               <span className="mt-1 block text-xs text-red-700">Esta cédula ya existe en el sistema.</span>
-            ) : null}
+            ) : (
+              <span className="mt-1 block text-[11px] text-[var(--muted)]">
+                El usuario y la contraseña inicial serán la cédula. Podrá cambiarla después desde su perfil.
+              </span>
+            )}
           </label>
 
           <label className="block">
@@ -561,29 +500,22 @@ export default function UsuariosPage() {
             ) : null}
           </label>
 
-          <label className="block">
-            <span className="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Rol</span>
-            <select
-              name="rol"
-              className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2.5 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
-              value={form.rol}
-              onChange={onChange('rol')}
-              disabled={esModuloDocentes || esModuloEstudiantes}
-            >
-              {esModuloDocentes ? (
-                <option value="docente">Docente</option>
-              ) : esModuloEstudiantes ? (
+          {!esModuloRol ? (
+            <label className="block">
+              <span className="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Rol</span>
+              <select
+                name="rol"
+                className="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2.5 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                value={form.rol}
+                onChange={onChange('rol')}
+              >
                 <option value="estudiante">Estudiante</option>
-              ) : (
-                <>
-                  <option value="estudiante">Estudiante</option>
-                  <option value="docente">Docente</option>
-                  <option value="staff">Staff</option>
-                  <option value="admin">Administrador</option>
-                </>
-              )}
-            </select>
-          </label>
+                <option value="docente">Docente</option>
+                <option value="staff">Staff</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </label>
+          ) : null}
 
           <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-2.5">
             {validacion.checking ? (

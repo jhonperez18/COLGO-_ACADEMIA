@@ -146,6 +146,57 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
         }
       }
       if (!usuarios?.length) {
+        try {
+          let sqlEstU = `SELECT u.* FROM usuarios u
+            INNER JOIN estudiantes e ON e.usuario_id = u.id
+            WHERE e.usuario = ?`;
+          const argsEstU = [ident];
+          if (soloDigitos.length >= 4) {
+            sqlEstU += ` OR REPLACE(REPLACE(TRIM(e.usuario), '.', ''), '-', '') = ?`;
+            argsEstU.push(soloDigitos);
+          }
+          sqlEstU += ' LIMIT 1';
+          usuarios = await query(sqlEstU, argsEstU);
+        } catch (error) {
+          if (!isMissingTableError(error) && error?.code !== 'ER_BAD_FIELD_ERROR') throw error;
+          usuarios = [];
+        }
+      }
+      if (!usuarios?.length) {
+        try {
+          let sqlDocU = `SELECT u.* FROM usuarios u
+            INNER JOIN docentes d ON d.usuario_id = u.id
+            WHERE d.usuario = ?`;
+          const argsDocU = [ident];
+          if (soloDigitos.length >= 4) {
+            sqlDocU += ` OR REPLACE(REPLACE(TRIM(d.usuario), '.', ''), '-', '') = ?`;
+            argsDocU.push(soloDigitos);
+          }
+          sqlDocU += ' LIMIT 1';
+          usuarios = await query(sqlDocU, argsDocU);
+        } catch (error) {
+          if (!isMissingTableError(error) && error?.code !== 'ER_BAD_FIELD_ERROR') throw error;
+          usuarios = [];
+        }
+      }
+      if (!usuarios?.length) {
+        try {
+          let sqlStaff = `SELECT u.* FROM usuarios u
+            INNER JOIN staff_perfiles sp ON sp.usuario_id = u.id
+            WHERE sp.documento = ?`;
+          const argsStaff = [ident];
+          if (soloDigitos.length >= 4) {
+            sqlStaff += ` OR REPLACE(REPLACE(TRIM(sp.documento), '.', ''), '-', '') = ?`;
+            argsStaff.push(soloDigitos);
+          }
+          sqlStaff += ' LIMIT 1';
+          usuarios = await query(sqlStaff, argsStaff);
+        } catch (error) {
+          if (!isMissingTableError(error) && error?.code !== 'ER_BAD_FIELD_ERROR') throw error;
+          usuarios = [];
+        }
+      }
+      if (!usuarios?.length) {
         usuarios = await query(
           'SELECT * FROM usuarios WHERE LOWER(email) LIKE LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1',
           [`${ident}@%`, ident],

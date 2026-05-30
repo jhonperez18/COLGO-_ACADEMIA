@@ -16,6 +16,7 @@ import { ActualizarPasswordPage } from "./pages/ActualizarPasswordPage";
 import SupervisionUsuarioPage from "./pages/SupervisionUsuarioPage";
 import { RegistroPage } from "./pages/RegistroPage";
 import { StaffDashboardPage } from "./pages/StaffDashboardPage";
+import { AdminPerfilPage } from "./pages/AdminPerfilPage";
 
 function App() {
   return (
@@ -58,7 +59,8 @@ function App() {
           <Route path="pagos" element={<PagosPage />} />
           <Route path="sedes" element={<SedesPage />} />
           <Route path="matriculas" element={<MatriculasPage />} />
-          <Route path="usuarios" element={<UsuariosPage />} />
+          <Route path="usuarios" element={<Navigate to="perfil" replace />} />
+          <Route path="perfil" element={<AdminPerfilPage />} />
           <Route path="supervision" element={<SupervisionUsuarioPage />} />
         </Route>
         {/* Ficha de miembro: interfaz independiente (sin sidebar del panel principal) */}

@@ -1,5 +1,5 @@
 import { useState, type FormEvent, useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/common/Button'
 import { getApiBase, login } from '../services/apiClient'
 import { resolveApiBaseUrl } from '../config/apiBaseUrl'
@@ -7,7 +7,6 @@ import { getDashboardPathByRole, persistSession } from '../state/authSession'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -30,11 +29,9 @@ export function LoginPage() {
     try {
       const data = await login(emailVal, passwordVal)
       persistSession(data.token, data.usuario)
-      const from = (location.state as { from?: string } | null)?.from
-      const destino =
-        from && from !== '/login' && !from.startsWith('/login?')
-          ? from
-          : getDashboardPathByRole(data.usuario.rol)
+      const destino = data.usuario.cambiar_password
+        ? '/actualizar-password'
+        : getDashboardPathByRole(data.usuario.rol)
       navigate(destino, { replace: true })
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error desconocido'
@@ -76,9 +73,10 @@ export function LoginPage() {
                   <p className="ml-2">Usuario: MARIO</p>
                   <p className="ml-2">Contraseña: 123</p>
 
-                  <p className="mt-3"><span className="font-semibold text-[#fbbf24]">Usuarios nuevos (docente/estudiante):</span></p>
+                  <p className="mt-3"><span className="font-semibold text-[#fbbf24]">Usuarios nuevos (docente/estudiante/staff):</span></p>
                   <p className="ml-2">Usuario: cédula</p>
-                  <p className="ml-2">Contraseña inicial: cédula</p>
+                  <p className="ml-2">Contraseña inicial: cédula (cámbiala en tu perfil)</p>
+                  <p className="ml-2">Cada rol entra solo a su panel correspondiente</p>
 
                   <p className="mt-3 text-[#fbbf24]">✓ Debes iniciar sesión cada vez que abras la aplicación</p>
                 </div>
@@ -93,7 +91,7 @@ export function LoginPage() {
               <p className="text-sm font-semibold text-[var(--muted)]">Bienvenido</p>
               <h1 className="text-3xl font-semibold text-[var(--text)]">Inicia sesión</h1>
               <p className="text-sm text-[var(--muted)]">
-                Correo, usuario o <strong>cédula</strong> (docente/estudiante) y contraseña.
+                Usuario = <strong>cédula</strong> (o correo). Contraseña inicial = cédula.
               </p>
             </div>
 

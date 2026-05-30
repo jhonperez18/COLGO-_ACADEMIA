@@ -54,7 +54,7 @@ export function DashboardPage() {
     void (async () => {
       setCargandoRegistro(true)
       try {
-        const rows = await listRegistroSistema(5)
+        const rows = await listRegistroSistema({ limit: 5 })
         if (!cancel) setRegistroReciente(Array.isArray(rows) ? rows : [])
       } catch {
         if (!cancel) setRegistroReciente([])

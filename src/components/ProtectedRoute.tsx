@@ -71,7 +71,7 @@ export function ProtectedRoute({ children, rol }: ProtectedRouteProps) {
   }
 
   if (rol && usuario.rol !== rol) {
-    return <Navigate to="/unauthorized" replace />
+    return <Navigate to={getDashboardPathByRole(usuario.rol)} replace />
   }
 
   return <>{children}</>

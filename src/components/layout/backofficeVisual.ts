@@ -27,10 +27,22 @@ export const backofficeDarkOrbTopRight =
 export const backofficeDarkOrbBottomLeft =
   'pointer-events-none absolute bottom-0 left-1/4 h-40 w-40 rounded-full bg-white/10 blur-2xl'
 
+/** Margen superior compartido: bloque COLGO (sidebar) y cabecera principal. */
+export const backofficePanelTopInsetClass = 'pt-2'
+/** Margen horizontal compartido: bloque COLGO y cabecera principal. */
+export const backofficePanelTopGutterClass = 'px-2'
+/** Altura del bloque COLGO y cabecera principal (alineación superior/inferior). */
+export const backofficeTopBarHeightClass = 'h-[7.25rem]'
+/** Contenedor fijo al desplazar: cabecera principal del panel. */
+export const backofficeTopHeaderStickyShellClass = 'sticky top-0 z-50 bg-[var(--bg)]'
+
 /** Base común para cabeceras superiores (panel principal y variantes por módulo/rol). */
 export const backofficeTopHeaderFrameClass = 'relative z-30 overflow-hidden'
 export const backofficeTopHeaderPadClass =
   'relative z-10 min-h-[127px] pb-6 pt-4 pl-4 pr-2 sm:pr-3 lg:pl-6 lg:pr-3'
+/** Cabecera principal del panel: misma altura y márgenes que ColgoBrandBlock en sidebar. */
+export const backofficeTopHeaderCompactPadClass =
+  'relative z-10 flex items-center py-0 pl-4 pr-2 sm:pr-3 lg:pl-5 lg:pr-3'
 /** Distribución exacta del panel principal: bloque lateral + bloque principal. */
 export const backofficeTopTwoBlockGridClass =
   'grid grid-cols-1 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] lg:items-stretch lg:gap-4'

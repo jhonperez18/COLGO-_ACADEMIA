@@ -147,10 +147,11 @@ function hydrateFromStorage() {
 }
 
 export function getDashboardPathByRole(rol: UserRole): string {
-  if (rol === 'admin') return '/admin'
-  if (rol === 'staff') return '/staff'
-  if (rol === 'estudiante') return '/estudiante'
-  return '/docente'
+  if (rol === 'admin') return '/admin/dashboard'
+  if (rol === 'staff') return '/staff/dashboard'
+  if (rol === 'estudiante') return '/estudiante/dashboard'
+  if (rol === 'docente') return '/docente/dashboard'
+  return '/login'
 }
 
 export function persistSession(token: string, usuario: SessionUser): void {

@@ -22,7 +22,8 @@
     "vercel:prod": "npx --yes vercel@latest link --yes --project colgo-academi-saas && npx --yes vercel@latest deploy --prod --yes",
     "check:production": "node scripts/check-production-api.mjs",
     "setup:aiven": "node scripts/setup-aiven-production.mjs",
-    "deploy:production": "node scripts/deploy-production.mjs"
+    "deploy:production": "node scripts/deploy-production.mjs",
+    "deploy:colgo-saas": "node scripts/deploy-colgo-saas.mjs"
   },
   "ts-node": {
     "esm": true,

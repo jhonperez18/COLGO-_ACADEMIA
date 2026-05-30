@@ -101,6 +101,47 @@ async function ensurePersonaNombreColumns() {
   columnNamesCache.delete('docentes')
 }
 
+/** Login legacy: columna `usuario` en estudiantes/docentes (Aiven). */
+async function ensurePersonaLoginUsuarioColumns() {
+  await ensureMysqlColumns('estudiantes', [['usuario', 'VARCHAR(80) NULL']])
+  await ensureMysqlColumns('docentes', [['usuario', 'VARCHAR(80) NULL']])
+  columnNamesCache.delete('estudiantes')
+  columnNamesCache.delete('docentes')
+  try {
+    await query(
+      `UPDATE estudiantes SET usuario = documento
+       WHERE (usuario IS NULL OR TRIM(usuario) = '') AND documento IS NOT NULL AND TRIM(documento) != ''`,
+    )
+    await query(
+      `UPDATE docentes SET usuario = documento
+       WHERE (usuario IS NULL OR TRIM(usuario) = '') AND documento IS NOT NULL AND TRIM(documento) != ''`,
+    )
+  } catch (e) {
+    console.warn('[COLGO] backfill persona.usuario:', e?.code || e?.message || e)
+  }
+}
+
+function resolveLoginUsuario(rawUsuario, documento) {
+  const u = String(rawUsuario ?? '').trim()
+  const d = String(documento ?? '').trim()
+  return u || d || null
+}
+
+async function insertPersonaRecord(table, { usuario_id, nombre, apellido, documento, usuarioLogin }) {
+  await ensurePersonaLoginUsuarioColumns()
+  const loginUsuario = resolveLoginUsuario(usuarioLogin, documento)
+  const cols = await getExistingColumnNames(table)
+  const fields = ['usuario_id', 'nombre', 'apellido', 'documento']
+  const values = [usuario_id, nombre || '—', apellido || '—', documento || null]
+  if (cols.has('usuario')) {
+    fields.push('usuario')
+    values.push(loginUsuario)
+  }
+  const placeholders = fields.map(() => '?').join(', ')
+  const quoted = fields.map((c) => `\`${c}\``).join(', ')
+  return query(`INSERT INTO \`${table}\` (${quoted}) VALUES (${placeholders})`, values)
+}
+
 async function backfillPersonaNombresVacios() {
   try {
     await query(
@@ -280,6 +321,88 @@ function isMissingTableError(error) {
   return error?.code === 'ER_NO_SUCH_TABLE'
 }
 
+/** Mensajes claros para el panel cuando falla una operación en MySQL. */
+function buildUsuarioDbErrorResponse(err, fallbackError) {
+  if (err?.code === 'ER_DUP_ENTRY') {
+    const msg = String(err.sqlMessage || '').toLowerCase()
+    if (msg.includes('email') || msg.includes('usuarios')) {
+      return { status: 409, body: { error: 'El correo ya está registrado.' } }
+    }
+    if (msg.includes('documento')) {
+      return { status: 409, body: { error: 'La cédula ya está registrada en otro estudiante o docente.' } }
+    }
+    return { status: 409, body: { error: 'Correo o cédula duplicados. Revisa que no existan ya en el sistema.' } }
+  }
+  if (err?.code === 'ER_NO_DEFAULT_FOR_FIELD') {
+    const field = String(err.sqlMessage || '').match(/Field '([^']+)'/)?.[1] || ''
+    const hints = {
+      usuario: 'Indica el usuario de acceso en el formulario (por defecto se usa la cédula).',
+    }
+    return {
+      status: 400,
+      body: {
+        error: field ? `Falta completar el campo obligatorio «${field}».` : fallbackError,
+        hint: hints[field] || 'Revisa que todos los campos del formulario estén completos.',
+      },
+    }
+  }
+  if (err?.code === 'ER_BAD_FIELD_ERROR') {
+    return {
+      status: 500,
+      body: {
+        error: 'La base de datos no tiene una columna necesaria para crear el usuario.',
+        hint: 'Reinicia el servidor backend para aplicar las migraciones automáticas.',
+      },
+    }
+  }
+  if (isMissingTableError(err)) {
+    return {
+      status: 500,
+      body: {
+        error: fallbackError,
+        hint: 'Falta una tabla auxiliar (estudiantes, docentes o permisos). Reinicia el backend.',
+      },
+    }
+  }
+  if (err?.code === 'ER_DATA_TOO_LONG') {
+    return {
+      status: 400,
+      body: {
+        error: 'Algún dato es demasiado largo.',
+        hint: 'Acorta el nombre, apellido, cédula o correo e intenta de nuevo.',
+      },
+    }
+  }
+  if (err?.code === 'ECONNREFUSED' || err?.code === 'ETIMEDOUT' || err?.code === 'PROTOCOL_CONNECTION_LOST') {
+    return {
+      status: 503,
+      body: {
+        error: 'No se pudo conectar con la base de datos.',
+        hint: 'Espera unos segundos e intenta otra vez.',
+      },
+    }
+  }
+
+  const sqlMsg = String(err?.sqlMessage || err?.message || '').trim()
+  if (sqlMsg && !sqlMsg.includes('Error al crear')) {
+    return {
+      status: 500,
+      body: {
+        error: fallbackError,
+        hint: sqlMsg.length > 180 ? `${sqlMsg.slice(0, 180)}…` : sqlMsg,
+      },
+    }
+  }
+
+  return {
+    status: 500,
+    body: {
+      error: fallbackError,
+      hint: 'Verifica que el correo y la cédula no estén en uso e intenta de nuevo.',
+    },
+  }
+}
+
 async function ensureSupportTables() {
   if (!supportTablesReady) {
     await query(`
@@ -376,6 +499,7 @@ async function ensureSupportTables() {
   if (!supportTablesExtrasReady) {
     await ensureUltimoAccesoColumn()
     await ensurePersonaNombreColumns()
+    await ensurePersonaLoginUsuarioColumns()
     await backfillPersonaNombresVacios()
     await ensureEstudiantesUbicacionColumns()
     await ensureDocentesExtraColumns()
@@ -424,6 +548,15 @@ function rolEtiqueta(rolDb) {
   if (rolDb === 'staff') return 'Staff'
   if (rolDb === 'docente') return 'Docente'
   return 'Estudiante'
+}
+
+function resolvePanelUrlByRol(baseFront, rolDb) {
+  const base = String(baseFront || '').replace(/\/$/, '')
+  if (rolDb === 'estudiante') return `${base}/estudiante/dashboard`
+  if (rolDb === 'docente') return `${base}/docente/dashboard`
+  if (rolDb === 'staff') return `${base}/staff/dashboard`
+  if (rolDb === 'admin') return `${base}/admin/dashboard`
+  return `${base}/login`
 }
 
 function isStaffUser(req) {
@@ -568,14 +701,17 @@ function normalizeMysqlDateInput(value) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-async function ensureEstudianteRow(usuarioId, nombre, apellido, documento) {
+async function ensureEstudianteRow(usuarioId, nombre, apellido, documento, usuarioLogin) {
   await ensurePersonaNombreColumns()
   const rows = await query('SELECT id FROM estudiantes WHERE usuario_id = ? LIMIT 1', [usuarioId])
   if (Array.isArray(rows) && rows.length > 0) return
-  await query(
-    'INSERT INTO estudiantes (usuario_id, nombre, apellido, documento) VALUES (?, ?, ?, ?)',
-    [usuarioId, nombre || '—', apellido || '—', documento || null],
-  )
+  await insertPersonaRecord('estudiantes', {
+    usuario_id: usuarioId,
+    nombre,
+    apellido,
+    documento,
+    usuarioLogin,
+  })
 }
 
 /** Detalle admin: nombres desde JOIN o, si falla el esquema, solo desde usuarios + perfil por rol. */
@@ -615,13 +751,16 @@ async function fetchUsuarioDetalleBase(id) {
   }
 }
 
-async function ensureDocenteRow(usuarioId, nombre, apellido, documento) {
+async function ensureDocenteRow(usuarioId, nombre, apellido, documento, usuarioLogin) {
   const rows = await query('SELECT id FROM docentes WHERE usuario_id = ? LIMIT 1', [usuarioId])
   if (Array.isArray(rows) && rows.length > 0) return
-  await query(
-    'INSERT INTO docentes (usuario_id, nombre, apellido, documento) VALUES (?, ?, ?, ?)',
-    [usuarioId, nombre || '—', apellido || '—', documento || null],
-  )
+  await insertPersonaRecord('docentes', {
+    usuario_id: usuarioId,
+    nombre,
+    apellido,
+    documento,
+    usuarioLogin,
+  })
 }
 
 async function getPersonaPorUsuarioId(usuarioId) {
@@ -864,14 +1003,29 @@ router.get('/registro', async (req, res) => {
     await ensureSupportTables()
     const limitRaw = Number.parseInt(String(req.query.limit || '100'), 10) || 100
     const limit = Math.min(500, Math.max(1, limitRaw))
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/
+    const desde = dateRe.test(String(req.query.desde || '').trim()) ? String(req.query.desde).trim() : null
+    const hasta = dateRe.test(String(req.query.hasta || '').trim()) ? String(req.query.hasta).trim() : null
+    const conditions = []
+    const params = []
+    if (desde) {
+      conditions.push('DATE(a.fecha) >= ?')
+      params.push(desde)
+    }
+    if (hasta) {
+      conditions.push('DATE(a.fecha) <= ?')
+      params.push(hasta)
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
     const rows = await query(
       `SELECT a.id, a.actor_usuario_id, a.actor_rol, a.objetivo_usuario_id, a.accion, a.detalle, a.ip_origen, a.fecha,
               ua.email AS actor_email
        FROM actividad_usuarios a
        LEFT JOIN usuarios ua ON ua.id = a.actor_usuario_id
+       ${where}
        ORDER BY a.fecha DESC
        LIMIT ?`,
-      [limit],
+      [...params, limit],
     )
     res.json(Array.isArray(rows) ? rows : [])
   } catch (err) {
@@ -1481,9 +1635,7 @@ router.post('/:id/reenviar-bienvenida', async (req, res) => {
 
     const baseFront = resolveFrontendBase(req)
     const loginUrl = `${baseFront}/login`
-    let panelUrl = `${baseFront}/admin/dashboard`
-    if (persona.rol === 'estudiante') panelUrl = `${baseFront}/estudiante/dashboard`
-    if (persona.rol === 'docente') panelUrl = `${baseFront}/docente/dashboard`
+    const panelUrl = resolvePanelUrlByRol(baseFront, String(persona.rol))
 
     const emailResult = await sendColgoUsuarioInvitacion({
       to: emailTo,
@@ -1772,6 +1924,8 @@ router.post('/', async (req, res) => {
   try {
     if (!(await requireStaffPermission(req, res, 'gestionar_usuarios'))) return
     await ensureSupportTables()
+    await ensurePersonaNombreColumns()
+    await ensurePersonaLoginUsuarioColumns()
     const existeMail = await query('SELECT id FROM usuarios WHERE LOWER(email) = LOWER(?)', [mail])
     if (Array.isArray(existeMail) && existeMail.length > 0) {
       return res.status(409).json({ error: 'El correo ya está registrado' })
@@ -1819,10 +1973,13 @@ router.post('/', async (req, res) => {
     }
 
     if (rolDb === 'estudiante') {
-      const estudianteResult = await query(
-        'INSERT INTO estudiantes (usuario_id, nombre, apellido, documento) VALUES (?, ?, ?, ?)',
-        [usuarioId, nombre, apellido, doc],
-      )
+      const estudianteResult = await insertPersonaRecord('estudiantes', {
+        usuario_id: usuarioId,
+        nombre,
+        apellido,
+        documento: doc,
+        usuarioLogin: doc,
+      })
       const estudianteId =
         estudianteResult && typeof estudianteResult === 'object' && 'insertId' in estudianteResult
           ? Number(estudianteResult.insertId)
@@ -1838,11 +1995,21 @@ router.post('/', async (req, res) => {
         )
       }
     } else if (rolDb === 'docente') {
+      await insertPersonaRecord('docentes', {
+        usuario_id: usuarioId,
+        nombre,
+        apellido,
+        documento: doc,
+        usuarioLogin: doc,
+      })
+    } else if (rolDb === 'staff') {
+      await ensureStaffProfileTable()
       await query(
-        'INSERT INTO docentes (usuario_id, nombre, apellido, documento) VALUES (?, ?, ?, ?)',
+        `INSERT INTO staff_perfiles (usuario_id, nombre, apellido, documento)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), apellido = VALUES(apellido), documento = VALUES(documento)`,
         [usuarioId, nombre, apellido, doc],
       )
-    } else if (rolDb === 'staff') {
       const preset = buildPermissionPreset('baja')
       await query(
         `INSERT INTO usuario_permisos
@@ -1873,17 +2040,16 @@ router.post('/', async (req, res) => {
       }
     }
     if (err && err.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ error: 'Datos duplicados (correo o cédula)' })
+      const mapped = buildUsuarioDbErrorResponse(err, 'No se pudo crear el usuario')
+      return res.status(mapped.status).json(mapped.body)
     }
-    res.status(500).json({ error: 'Error al crear usuario' })
-    return
+    const mapped = buildUsuarioDbErrorResponse(err, 'No se pudo crear el usuario')
+    return res.status(mapped.status).json(mapped.body)
   }
 
   const baseFront = resolveFrontendBase(req)
   const loginUrl = `${baseFront}/login`
-  let panelUrl = `${baseFront}/admin/dashboard`
-  if (rolDb === 'estudiante') panelUrl = `${baseFront}/estudiante/dashboard`
-  if (rolDb === 'docente') panelUrl = `${baseFront}/docente/dashboard`
+  const panelUrl = resolvePanelUrlByRol(baseFront, rolDb)
 
   let emailResult = { success: false, skipped: false, error: '' }
   try {

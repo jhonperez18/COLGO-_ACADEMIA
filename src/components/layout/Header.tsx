@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Bell,
   Brush,
@@ -25,8 +26,9 @@ import {
   backofficeDarkOrbTopRight,
   backofficeDarkSurfaceGradient,
   backofficeDarkSurfaceInset,
-  backofficeTopHeaderPadClass,
+  backofficeTopHeaderCompactPadClass,
   backofficeTopHeaderFrameClass,
+  backofficeTopBarHeightClass,
 } from './backofficeVisual'
 
 type Notification = { id: string; title: string; detail: string; dateISO: string }
@@ -84,20 +86,9 @@ export function Header({
   const [savingProfile, setSavingProfile] = useState(false)
   const [passwordFeedback, setPasswordFeedback] = useState<string | null>(null)
   const [profileFeedback, setProfileFeedback] = useState<string | null>(null)
-  const [adminDatosOpen, setAdminDatosOpen] = useState(false)
-  const [adminForm, setAdminForm] = useState({
-    nombre: '',
-    apellido: '',
-    documento: '',
-    telefono: '',
-    cargo: '',
-  })
-  const [adminPerfilLoading, setAdminPerfilLoading] = useState(false)
-  const [adminPerfilSaving, setAdminPerfilSaving] = useState(false)
-  const [adminPerfilErr, setAdminPerfilErr] = useState<string | null>(null)
-  const [adminPerfilOk, setAdminPerfilOk] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const navigate = useNavigate()
   const sessionUser = loadSessionUser()
 
   useEffect(() => {
@@ -192,6 +183,14 @@ export function Header({
           setProfile((prev) => ({ ...prev, avatarDataUrl: foto }))
           storeProfilePhoto(sessionUser?.id as number | string | undefined, foto)
         }
+        if (sessionUser?.rol === 'admin') {
+          const nombre = String(data.nombre || '').trim()
+          const apellido = String(data.apellido || '').trim()
+          const display = [nombre, apellido].filter(Boolean).join(' ')
+          if (display) {
+            setProfile((prev) => ({ ...prev, displayName: display }))
+          }
+        }
       } catch {
         /* usar caché local */
       }
@@ -200,34 +199,6 @@ export function Header({
       cancelled = true
     }
   }, [profileOpen, sessionUser?.id, sessionUser?.rol])
-
-  useEffect(() => {
-    if (!profileOpen || sessionUser?.rol !== 'admin') return
-    let cancelled = false
-    setAdminPerfilErr(null)
-    setAdminPerfilOk(null)
-    setAdminPerfilLoading(true)
-    void (async () => {
-      try {
-        const data = (await getUsuariosMePerfil()) as Record<string, unknown>
-        if (cancelled) return
-        setAdminForm({
-          nombre: String(data.nombre || ''),
-          apellido: String(data.apellido || ''),
-          documento: String(data.documento || ''),
-          telefono: String(data.telefono || ''),
-          cargo: String(data.cargo || ''),
-        })
-      } catch (e) {
-        if (!cancelled) setAdminPerfilErr(e instanceof Error ? e.message : 'No se pudo cargar el perfil')
-      } finally {
-        if (!cancelled) setAdminPerfilLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [profileOpen, sessionUser?.rol, sessionUser?.id])
 
   useEffect(() => {
     document.body.classList.toggle('compact-ui', uiSettings.compact)
@@ -314,36 +285,6 @@ export function Header({
     })()
   }
 
-  const guardarDatosAdmin = async () => {
-    setAdminPerfilErr(null)
-    setAdminPerfilOk(null)
-    if (!adminForm.nombre.trim() || !adminForm.apellido.trim()) {
-      setAdminPerfilErr('Completa al menos nombre y apellido.')
-      return
-    }
-    setAdminPerfilSaving(true)
-    try {
-      await updateUsuariosMePerfil({
-        nombre: adminForm.nombre.trim(),
-        apellido: adminForm.apellido.trim(),
-        documento: adminForm.documento.trim(),
-        telefono: adminForm.telefono.trim(),
-        cargo: adminForm.cargo.trim(),
-        foto_url: profile.avatarDataUrl || null,
-      })
-      const display = [adminForm.nombre.trim(), adminForm.apellido.trim()].filter(Boolean).join(' ')
-      setProfile((prev) => ({ ...prev, displayName: display }))
-      if (sessionUser) {
-        persistSession(getSessionToken() || '', { ...sessionUser, nombre_panel: display })
-      }
-      setAdminPerfilOk('Datos guardados en el sistema.')
-    } catch (e) {
-      setAdminPerfilErr(e instanceof Error ? e.message : 'No se pudo guardar')
-    } finally {
-      setAdminPerfilSaving(false)
-    }
-  }
-
   const onChangePassword = async () => {
     setPasswordFeedback(null)
     if (!newPassword || !confirmPassword) {
@@ -376,29 +317,30 @@ export function Header({
   return (
     <header
       className={cn(
-        'mx-3',
         backofficeTopHeaderFrameClass,
+        backofficeTopBarHeightClass,
         backofficeDarkCardChrome,
         backofficeDarkSurfaceInset,
         backofficeDarkSurfaceGradient,
+        'rounded-xl',
       )}
     >
       <div className={backofficeBottomAccentClass} aria-hidden />
       <div className={backofficeDarkOrbTopRight} aria-hidden />
       <div className={backofficeDarkOrbBottomLeft} aria-hidden />
-      <div className={cn(backofficeTopHeaderPadClass, 'flex flex-wrap items-center gap-4 md:gap-6 lg:gap-8')}>
-          <div className="flex min-w-0 shrink-0 items-center gap-3">
+      <div className={cn(backofficeTopHeaderCompactPadClass, 'h-full gap-2 sm:gap-3 md:gap-4')}>
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={onOpenSidebar}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white lg:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white lg:hidden"
               aria-label="Abrir menú"
             >
-              <Menu size={18} />
+              <Menu size={17} />
             </button>
-            <div className="min-w-0 ml-2 sm:ml-3 lg:ml-4">
+            <div className="min-w-0 ml-1 sm:ml-2 lg:ml-3">
               <h1
-                className="inline-block max-w-[min(100%,18rem)] truncate rounded-lg border border-amber-300/55 bg-gradient-to-r from-slate-900/65 via-slate-800/60 to-amber-900/35 px-2.5 py-1 text-sm font-semibold tracking-tight text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] sm:max-w-xs sm:px-3 sm:text-base"
+                className="inline-block max-w-[min(100%,18rem)] truncate rounded-lg border border-amber-300/55 bg-gradient-to-r from-slate-900/65 via-slate-800/60 to-amber-900/35 px-2 py-0.5 text-xs font-semibold tracking-tight text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] sm:max-w-xs sm:px-2.5 sm:text-sm"
                 title={activePageLabel}
               >
                 {activePageLabel}
@@ -408,7 +350,7 @@ export function Header({
 
           <div
             ref={rootRef}
-            className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 pl-1 pr-1 sm:gap-2 sm:pr-2 md:gap-2.5 md:pl-4 lg:gap-3 lg:pl-6 lg:pr-3"
+            className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 pl-1 pr-1 sm:gap-2 sm:pr-2 md:pl-3 lg:pl-4 lg:pr-2"
           >
             <div className="relative">
               <button
@@ -417,7 +359,7 @@ export function Header({
                   setNotifOpen((v) => !v)
                   setUserOpen(false)
                 }}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white"
                 aria-label="Notificaciones"
               >
                 <Bell size={18} />
@@ -461,18 +403,15 @@ export function Header({
                   setUserOpen((v) => !v)
                   setNotifOpen(false)
                 }}
-                className="hidden max-w-[220px] items-center gap-2 rounded-xl border border-transparent px-2 py-2 text-right transition hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:max-w-[260px] md:flex md:max-w-[300px] lg:max-w-[400px]"
+                className="hidden max-w-[200px] items-center gap-1.5 rounded-lg border border-transparent px-1.5 py-1 text-right transition hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:max-w-[240px] md:flex md:max-w-[280px] lg:max-w-[320px]"
               >
-                <p className="min-w-0 flex-1 truncate text-base font-bold tracking-tight text-white lg:text-lg">
+                <p className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight text-white">
                   {nombreCabecera}
                 </p>
                 <ChevronDown
-                  size={20}
+                  size={16}
                   strokeWidth={2.25}
-                  className={cn(
-                    'shrink-0 text-white/70 transition lg:h-[22px] lg:w-[22px]',
-                    userOpen && 'rotate-180',
-                  )}
+                  className={cn('shrink-0 text-white/70 transition', userOpen && 'rotate-180')}
                 />
               </button>
 
@@ -485,9 +424,9 @@ export function Header({
                   setUserOpen((v) => !v)
                   setNotifOpen(false)
                 }}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:hidden"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:hidden"
               >
-                <Settings size={18} />
+                <Settings size={17} />
                 <span className="sr-only">Cuenta y configuración</span>
               </button>
 
@@ -503,7 +442,6 @@ export function Header({
                     onClick={() => {
                       setUserOpen(false)
                       setProfileOpen(true)
-                      setAdminDatosOpen(false)
                       setProfileFeedback(null)
                       setPasswordFeedback(null)
                     }}
@@ -519,7 +457,7 @@ export function Header({
               className="pointer-events-none flex shrink-0 select-none items-center justify-center"
               aria-hidden="true"
             >
-              <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-white/10 shadow-[0_8px_28px_rgba(15,23,42,0.45)] ring-2 ring-white/25 md:h-[5.5rem] md:w-[5.5rem] lg:h-24 lg:w-24">
+              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 shadow-[0_4px_16px_rgba(15,23,42,0.35)] ring-2 ring-white/25 sm:h-16 sm:w-16">
                 {profile.avatarDataUrl ? (
                   <img
                     src={profile.avatarDataUrl}
@@ -527,10 +465,7 @@ export function Header({
                     className="block h-full w-full object-cover object-center"
                   />
                 ) : (
-                  <UserCircle2
-                    className="h-11 w-11 text-[var(--muted)] md:h-[3.25rem] md:w-[3.25rem] lg:h-14 lg:w-14"
-                    strokeWidth={1.35}
-                  />
+                  <UserCircle2 className="h-8 w-8 text-[var(--muted)] sm:h-9 sm:w-9" strokeWidth={1.35} />
                 )}
               </div>
             </div>
@@ -539,10 +474,7 @@ export function Header({
 
       <Modal
         open={profileOpen}
-        onClose={() => {
-          setProfileOpen(false)
-          setAdminDatosOpen(false)
-        }}
+        onClose={() => setProfileOpen(false)}
         title="Perfil y personalización"
       >
         <div className="grid gap-4 lg:grid-cols-2">
@@ -584,58 +516,23 @@ export function Header({
 
             {sessionUser?.rol === 'admin' ? (
               <div className="rounded-lg border border-[var(--border)] bg-white/90 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-[var(--muted)]">Datos administrativos</p>
-                  <Button size="sm" variant="secondary" type="button" onClick={() => setAdminDatosOpen((o) => !o)}>
-                    {adminDatosOpen ? 'Ocultar' : 'Editar datos'}
-                  </Button>
-                </div>
-                {adminDatosOpen ? (
-                  <div className="mt-3 space-y-2">
-                    {adminPerfilLoading ? <p className="text-xs text-[var(--muted)]">Cargando datos…</p> : null}
-                    {adminPerfilErr ? <p className="text-xs text-red-600">{adminPerfilErr}</p> : null}
-                    {adminPerfilOk ? <p className="text-xs text-green-700">{adminPerfilOk}</p> : null}
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <input
-                        value={adminForm.nombre}
-                        onChange={(e) => setAdminForm((f) => ({ ...f, nombre: e.target.value }))}
-                        placeholder="Nombre"
-                        className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm"
-                      />
-                      <input
-                        value={adminForm.apellido}
-                        onChange={(e) => setAdminForm((f) => ({ ...f, apellido: e.target.value }))}
-                        placeholder="Apellido"
-                        className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm"
-                      />
-                      <input
-                        value={adminForm.documento}
-                        onChange={(e) => setAdminForm((f) => ({ ...f, documento: e.target.value }))}
-                        placeholder="Documento"
-                        className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm"
-                      />
-                      <input
-                        value={adminForm.telefono}
-                        onChange={(e) => setAdminForm((f) => ({ ...f, telefono: e.target.value }))}
-                        placeholder="Teléfono"
-                        className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm"
-                      />
-                      <input
-                        value={adminForm.cargo}
-                        onChange={(e) => setAdminForm((f) => ({ ...f, cargo: e.target.value }))}
-                        placeholder="Cargo / área"
-                        className="h-9 rounded-lg border border-[var(--border)] px-2 text-sm sm:col-span-2"
-                      />
-                    </div>
-                    <Button size="sm" variant="primary" type="button" onClick={() => void guardarDatosAdmin()} disabled={adminPerfilSaving}>
-                      {adminPerfilSaving ? 'Guardando…' : 'Guardar'}
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-[var(--muted)]">
-                    Estos datos se muestran en el listado de usuarios del panel. Pulsa «Editar datos» para cambiarlos.
-                  </p>
-                )}
+                <p className="text-xs font-semibold text-[var(--muted)]">Datos de administrador</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                  Nombre, documento, cargo, foto y contraseña se gestionan en la ficha completa del administrador.
+                </p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  type="button"
+                  className="mt-2"
+                  onClick={() => {
+                    setProfileOpen(false)
+                    setUserOpen(false)
+                    navigate('/admin/perfil')
+                  }}
+                >
+                  Editar datos completos
+                </Button>
               </div>
             ) : null}
           </section>

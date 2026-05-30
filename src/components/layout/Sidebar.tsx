@@ -19,6 +19,11 @@ import { Button } from '../common/Button'
 import { ColgoBrandBlock } from './ColgoBrandBlock'
 import { rolEtiqueta } from './rolEtiqueta'
 import {
+  backofficePanelTopGutterClass,
+  backofficePanelTopInsetClass,
+  backofficeTopBarHeightClass,
+} from './backofficeVisual'
+import {
   SIDEBAR_NAV_ICON_SIZE,
   SIDEBAR_NAV_LIST_CLASS,
   SIDEBAR_NAV_SCROLL_CLASS,
@@ -56,7 +61,7 @@ export function getNavItems(rol?: UserRole): NavItem[] {
       { to: `${base}/pagos`, label: 'Pagos', icon: <CreditCard size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/matriculas`, label: 'Matriculas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/sedes`, label: 'Sedes', icon: <MapPinned size={navIcon} strokeWidth={1.75} /> },
-      { to: `${base}/usuarios`, label: 'Nuevo Registro', icon: <Shield size={navIcon} strokeWidth={1.75} /> },
+      { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/eventos`, label: 'Eventos', icon: <ScrollText size={navIcon} strokeWidth={1.75} /> },
     ]
   }
@@ -119,8 +124,13 @@ export function Sidebar({
           'lg:translate-x-0',
         )}
       >
-        <div className="px-2 pt-2">
-          <ColgoBrandBlock badgeLabel={rolEtiqueta(rol)} variant="fichaHeader" className="rounded-xl px-4 pb-3 pt-3" />
+        <div className={cn(backofficePanelTopGutterClass, backofficePanelTopInsetClass)}>
+          <ColgoBrandBlock
+            badgeLabel={rolEtiqueta(rol)}
+            variant="fichaHeader"
+            alignHeightWithSibling
+            className={cn('rounded-xl px-4 pb-3 pt-3', backofficeTopBarHeightClass)}
+          />
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">

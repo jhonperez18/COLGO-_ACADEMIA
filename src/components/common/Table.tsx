@@ -14,6 +14,8 @@ export type DataTableProps<T extends object> = {
   getRowId: (row: T) => string
   emptyState?: ReactNode
   className?: string
+  /** Filas más bajas (texto xs, menos padding). */
+  dense?: boolean
   /** Abre detalle / panel al hacer clic en la fila (usa stopPropagation en botones dentro de celdas). */
   onRowClick?: (row: T) => void
 }
@@ -24,6 +26,7 @@ export function DataTable<T extends object>({
   getRowId,
   emptyState = 'No hay resultados.',
   className,
+  dense = false,
   onRowClick,
 }: DataTableProps<T>) {
   return (
@@ -35,8 +38,8 @@ export function DataTable<T extends object>({
               <th
                 key={col.header}
                 className={cn(
-                  'sticky top-0 z-[1] border-b-2 border-[var(--accent)] bg-[var(--panel-2)]',
-                  'px-4 py-3.5 text-left align-middle text-sm font-extrabold uppercase tracking-wide text-[var(--text)] antialiased',
+                  'sticky top-0 z-[1] border-b-2 border-[var(--accent)] bg-[var(--panel-2)] text-left align-middle font-extrabold uppercase tracking-wide text-[var(--text)] antialiased',
+                  dense ? 'px-3 py-2 text-[11px]' : 'px-4 py-3.5 text-sm',
                   col.headerClassName,
                 )}
               >
@@ -48,7 +51,10 @@ export function DataTable<T extends object>({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-10 text-center text-sm text-[var(--muted)]">
+              <td
+                colSpan={columns.length}
+                className={cn('text-center text-[var(--muted)]', dense ? 'px-3 py-8 text-xs' : 'px-4 py-10 text-sm')}
+              >
                 {emptyState}
               </td>
             </tr>
@@ -68,7 +74,10 @@ export function DataTable<T extends object>({
                   )}
                 >
                   {columns.map((col) => (
-                    <td key={col.header} className={cn('px-4 py-2 text-sm align-middle', sep, col.className)}>
+                    <td
+                      key={col.header}
+                      className={cn('align-middle', dense ? 'px-3 py-1 text-xs leading-snug' : 'px-4 py-2 text-sm', sep, col.className)}
+                    >
                       {col.render(row)}
                     </td>
                   ))}

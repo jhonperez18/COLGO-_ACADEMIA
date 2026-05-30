@@ -216,14 +216,33 @@ function getWelcomePanelCopy(roleLabel) {
   }
   if (isDocente) {
     return {
-      html: 'Bienvenido(a) a COLGO ACEDEMIA. Entra al siguiente enlace y comienza tu experiencia docente con nosotros:',
-      text: 'Bienvenido(a) a COLGO ACEDEMIA. Entra al siguiente enlace y comienza tu experiencia docente con nosotros:',
+      html: 'Bienvenido(a) a COLGO ACADEMIA. Entra al siguiente enlace para acceder a tu panel de docente:',
+      text: 'Bienvenido(a) a COLGO ACADEMIA. Entra al siguiente enlace para acceder a tu panel de docente:',
+    }
+  }
+  if (isStaff) {
+    return {
+      html: 'Bienvenido(a) a COLGO ACADEMIA. Entra al siguiente enlace para acceder a tu panel de personal (staff):',
+      text: 'Bienvenido(a) a COLGO ACADEMIA. Entra al siguiente enlace para acceder a tu panel de personal (staff):',
     }
   }
   return {
-    html: 'Bienvenido(a) a COLGO ACEDEMIA. Entra al siguiente enlace y aprende con nosotros:',
-    text: 'Bienvenido(a) a COLGO ACEDEMIA. Entra al siguiente enlace y aprende con nosotros:',
+    html: 'Bienvenido(a) a COLGO ACADEMIA. Entra al siguiente enlace para acceder a tu panel de estudiante:',
+    text: 'Bienvenido(a) a COLGO ACADEMIA. Entra al siguiente enlace para acceder a tu panel de estudiante:',
   }
+}
+
+function getPanelAccessNote(roleLabel) {
+  if (/docente/i.test(String(roleLabel || ''))) {
+    return 'Este acceso es exclusivo para el panel de docente.'
+  }
+  if (/staff/i.test(String(roleLabel || ''))) {
+    return 'Este acceso es exclusivo para el panel de personal (staff).'
+  }
+  if (/administrador/i.test(String(roleLabel || ''))) {
+    return 'Este acceso es para el panel de administración.'
+  }
+  return 'Este acceso es exclusivo para el panel de estudiante.'
 }
 
 /**
@@ -417,7 +436,9 @@ export async function sendColgoUsuarioInvitacion({
   }
 
   const welcomeCopy = getWelcomePanelCopy(rolEtiqueta)
+  const panelNote = getPanelAccessNote(rolEtiqueta)
   const forcedLoginUrl = buildForcedLoginUrlForEmail()
+  const panelLink = panelUrl ? withForcedLoginQuery(String(panelUrl)) : forcedLoginUrl
   const htmlContent = `
       <!DOCTYPE html>
       <html><head><meta charset="UTF-8"></head>
@@ -432,21 +453,22 @@ export async function sendColgoUsuarioInvitacion({
           <p>Hola <strong>${nombreCompleto}</strong>,</p>
           <p style="margin-top:16px;color:#111827;font-size:15px;line-height:1.45;">
             <strong style="display:block;font-size:18px;font-weight:800;color:#92400e;margin-bottom:6px;">${welcomeCopy.html}</strong>
-            Presiona el botón de acceso para entrar a tu panel.
+            ${panelNote}
           </p>
-          <p><a href="${forcedLoginUrl}" style="display:inline-block;background:#f59e0b;color:#111;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;">Ir a iniciar sesión</a></p>
+          <p><a href="${forcedLoginUrl}" style="display:inline-block;background:#f59e0b;color:#111;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;">Iniciar sesión</a></p>
+          ${panelUrl ? `<p style="margin-top:10px;"><a href="${panelLink}" style="display:inline-block;background:#111827;color:#fff;padding:8px 14px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">Ir a mi panel</a></p>` : ''}
           <p style="margin-top:10px;font-size:13px;color:#4b5563;line-height:1.5;">
             <strong>Si el botón no funciona,</strong> copia y pega esta dirección en tu navegador:<br/>
             <a href="${forcedLoginUrl}" style="color:#2563eb;word-break:break-all;">${forcedLoginUrl}</a>
           </p>
           <p style="margin-top:16px;"><strong>Recuerda tus datos de acceso:</strong></p>
           <table style="border-collapse:collapse;margin:10px 0 14px;width:100%;">
-            <tr><td style="padding:8px;border:1px solid #e5e7eb;"><strong>Usuario</strong> (cédula)</td>
+            <tr><td style="padding:8px;border:1px solid #e5e7eb;"><strong>Usuario</strong></td>
                 <td style="padding:8px;border:1px solid #e5e7eb;font-family:monospace;">${cedula}</td></tr>
-            <tr><td style="padding:8px;border:1px solid #e5e7eb;"><strong>Contraseña</strong></td>
+            <tr><td style="padding:8px;border:1px solid #e5e7eb;"><strong>Contraseña inicial</strong></td>
                 <td style="padding:8px;border:1px solid #e5e7eb;font-family:monospace;">${cedula}</td></tr>
           </table>
-          <p>En el inicio de sesión puedes usar tu <strong>cédula</strong> como usuario (con o sin puntos, según la registrada) o tu <strong>correo</strong> <code>${to}</code> con la misma contraseña.</p>
+          <p>El <strong>usuario</strong> y la <strong>contraseña inicial</strong> son tu cédula. También puedes iniciar sesión con tu correo <code>${to}</code> y la misma contraseña. Después del primer ingreso podrás cambiarla desde tu perfil.</p>
           <p style="font-size:12px;color:#6b7280;">Correo automático. Si no solicitaste esta cuenta, ignora este mensaje.</p>
             </div>
           </div>
@@ -456,8 +478,9 @@ export async function sendColgoUsuarioInvitacion({
 
   const text =
     `Hola ${nombreCompleto}, tu cuenta COLGO (${rolEtiqueta}). ` +
-    `Usuario (cédula): ${cedula}. Contraseña: ${cedula}. También puedes entrar con el correo ${to}. ` +
-    `Inicio de sesión: ${forcedLoginUrl}. ` +
+    `${panelNote} ` +
+    `Usuario: ${cedula}. Contraseña inicial: ${cedula}. También puedes entrar con el correo ${to}. ` +
+    `Inicio de sesión: ${forcedLoginUrl}. Panel: ${panelLink}. ` +
     `${welcomeCopy.text}`
 
   try {
