@@ -4,21 +4,32 @@ import {
   Bell,
   Brush,
   Camera,
-  ChevronDown,
+  Contrast,
+  LayoutGrid,
+  Maximize2,
   Menu,
   Monitor,
+  RotateCcw,
   Settings,
   ShieldCheck,
+  Sparkles,
+  Table2,
   Type,
   UserCircle2,
 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { formatDate } from '../../services/mockData'
-import { getSessionToken, loadSessionUser, loadStoredProfilePhoto, persistSession, storeProfilePhoto } from '../../state/authSession'
+import { getSessionToken, loadSessionUser, loadStoredProfilePhoto, persistSession, PROFILE_PHOTO_UPDATED_EVENT, syncProfilePhoto } from '../../state/authSession'
 import { Modal } from '../common/Modal'
 import { Button } from '../common/Button'
-import { changePassword, getUsuariosMePerfil, updateUsuariosMePerfil } from '../../services/apiClient'
+import { changePassword, getStudentPerfil, getTeacherPerfil, getUsuariosMePerfil, updateStudentPerfil, updateTeacherPerfil, updateUsuariosMePerfil } from '../../services/apiClient'
 import { buildProfilePhotoDataUrl } from '../../utils/profilePhotoDataUrl'
+import {
+  applyUiSettings,
+  DEFAULT_UI_SETTINGS,
+  loadUiSettings,
+  type UserInterfaceSettings,
+} from '../../utils/uiPreferences'
 import {
   backofficeBottomAccentClass,
   backofficeDarkCardChrome,
@@ -32,9 +43,14 @@ import {
 } from './backofficeVisual'
 
 type Notification = { id: string; title: string; detail: string; dateISO: string }
-type FontScale = 'sm' | 'md' | 'lg'
-type AccentTone = 'amber' | 'blue' | 'emerald'
-type UiSurface = 'soft' | 'clean'
+
+const uiSelectClass =
+  'h-9 w-full rounded-lg border border-[var(--border)] bg-white px-2.5 text-sm outline-none focus:border-[var(--accent)]'
+
+const uiToggleClass =
+  'flex items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-white px-2.5 py-1.5'
+
+const uiGroupLabelClass = 'text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]'
 
 type UserProfileSettings = {
   displayName: string
@@ -44,12 +60,8 @@ type UserProfileSettings = {
   avatarDataUrl: string
 }
 
-type UserInterfaceSettings = {
-  compact: boolean
-  fontScale: FontScale
-  accentTone: AccentTone
-  uiSurface: UiSurface
-}
+const profileFieldClass =
+  'h-10 w-full rounded-lg border border-[var(--border)] bg-white px-3 text-sm outline-none focus:border-[var(--accent)]'
 
 const mockNotifications: Notification[] = [
   { id: 'n1', title: 'Pago aprobado', detail: 'Mariana Gómez · Corte y Confección', dateISO: '2026-03-14T00:00:00.000Z' },
@@ -65,7 +77,6 @@ export function Header({
   activePageLabel: string
 }) {
   const [notifOpen, setNotifOpen] = useState(false)
-  const [userOpen, setUserOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [profile, setProfile] = useState<UserProfileSettings>({
     displayName: '',
@@ -74,12 +85,7 @@ export function Header({
     bio: '',
     avatarDataUrl: '',
   })
-  const [uiSettings, setUiSettings] = useState<UserInterfaceSettings>({
-    compact: false,
-    fontScale: 'md',
-    accentTone: 'amber',
-    uiSurface: 'soft',
-  })
+  const [uiSettings, setUiSettings] = useState<UserInterfaceSettings>(DEFAULT_UI_SETTINGS)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -91,12 +97,18 @@ export function Header({
   const navigate = useNavigate()
   const sessionUser = loadSessionUser()
 
+  const abrirPanelConfiguracion = () => {
+    setProfileOpen(true)
+    setProfileFeedback(null)
+    setPasswordFeedback(null)
+    setNotifOpen(false)
+  }
+
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
       if (!rootRef.current) return
       if (rootRef.current.contains(e.target as Node)) return
       setNotifOpen(false)
-      setUserOpen(false)
     }
     window.addEventListener('mousedown', onPointerDown)
     return () => window.removeEventListener('mousedown', onPointerDown)
@@ -125,10 +137,40 @@ export function Header({
     return desdeSesion || 'Usuario'
   }, [profile.displayName, sessionUser])
 
+  const fichaPerfilCompleta = useMemo(() => {
+    switch (sessionUser?.rol) {
+      case 'docente':
+        return {
+          titulo: 'Datos del docente',
+          descripcion: 'Nombre, documento, especialidad y foto se gestionan en la ficha completa del docente.',
+          ruta: '/docente/perfil',
+        }
+      case 'estudiante':
+        return {
+          titulo: 'Datos del estudiante',
+          descripcion: 'Datos personales, ubicación y foto se gestionan en la ficha completa del estudiante.',
+          ruta: '/estudiante/perfil',
+        }
+      case 'staff':
+        return {
+          titulo: 'Datos del personal',
+          descripcion: 'Nombre, documento, área y contacto se gestionan en la ficha completa del personal.',
+          ruta: '/staff/perfil',
+        }
+      case 'admin':
+        return {
+          titulo: 'Datos de administrador',
+          descripcion: 'Nombre, documento, cargo y foto se gestionan en la ficha completa del administrador.',
+          ruta: '/admin/perfil',
+        }
+      default:
+        return null
+    }
+  }, [sessionUser?.rol])
+
   useEffect(() => {
     const userId = String(sessionUser?.id ?? 'anon')
     const profileRaw = localStorage.getItem(`profile_settings_${userId}`)
-    const uiRaw = localStorage.getItem(`ui_settings_${userId}`)
     const fotoLocal = loadStoredProfilePhoto(sessionUser?.id as number | string | undefined)
 
     let nextProfile: UserProfileSettings = {
@@ -155,33 +197,64 @@ export function Header({
     }
 
     setProfile(nextProfile)
-
-    if (uiRaw) {
-      try {
-        const parsed = JSON.parse(uiRaw) as UserInterfaceSettings
-        setUiSettings({
-          compact: Boolean(parsed.compact),
-          fontScale: parsed.fontScale ?? 'md',
-          accentTone: parsed.accentTone ?? 'amber',
-          uiSurface: parsed.uiSurface ?? 'soft',
-        })
-      } catch {
-        // Ignorar preferencias corruptas
-      }
-    }
+    setUiSettings(loadUiSettings(sessionUser?.id as number | string | undefined))
   }, [sessionUser?.id, sessionUser?.nombre_panel, sessionUser?.rol])
 
   useEffect(() => {
-    if (!profileOpen || (sessionUser?.rol !== 'admin' && sessionUser?.rol !== 'staff')) return
+    const onPhotoUpdated = (event: Event) => {
+      const foto = (event as CustomEvent<{ foto?: string }>).detail?.foto ?? ''
+      setProfile((prev) => ({ ...prev, avatarDataUrl: foto }))
+    }
+    window.addEventListener(PROFILE_PHOTO_UPDATED_EVENT, onPhotoUpdated)
+    return () => window.removeEventListener(PROFILE_PHOTO_UPDATED_EVENT, onPhotoUpdated)
+  }, [])
+
+  useEffect(() => {
+    if (!profileOpen) return
     let cancelled = false
+
+    if (sessionUser?.rol === 'docente') {
+      void (async () => {
+        try {
+          const data = (await getTeacherPerfil({ includeFoto: true })) as Record<string, unknown>
+          if (cancelled) return
+          const foto = typeof data.foto_url === 'string' ? data.foto_url : ''
+          if (foto) syncProfilePhoto(sessionUser?.id as number | string | undefined, foto)
+          else setProfile((prev) => ({ ...prev, avatarDataUrl: loadStoredProfilePhoto(sessionUser?.id as number | string | undefined) }))
+        } catch {
+          /* usar caché local */
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (sessionUser?.rol === 'estudiante') {
+      void (async () => {
+        try {
+          const data = (await getStudentPerfil({ includeFoto: true })) as Record<string, unknown>
+          if (cancelled) return
+          const foto = typeof data.foto_url === 'string' ? data.foto_url : ''
+          if (foto) syncProfilePhoto(sessionUser?.id as number | string | undefined, foto)
+          else setProfile((prev) => ({ ...prev, avatarDataUrl: loadStoredProfilePhoto(sessionUser?.id as number | string | undefined) }))
+        } catch {
+          /* usar caché local */
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (sessionUser?.rol !== 'admin' && sessionUser?.rol !== 'staff') return
     void (async () => {
       try {
         const data = (await getUsuariosMePerfil({ includeFoto: true })) as Record<string, unknown>
         if (cancelled) return
         const foto = typeof data.foto_url === 'string' ? data.foto_url : ''
         if (foto) {
-          setProfile((prev) => ({ ...prev, avatarDataUrl: foto }))
-          storeProfilePhoto(sessionUser?.id as number | string | undefined, foto)
+          syncProfilePhoto(sessionUser?.id as number | string | undefined, foto)
         }
         if (sessionUser?.rol === 'admin') {
           const nombre = String(data.nombre || '').trim()
@@ -201,28 +274,7 @@ export function Header({
   }, [profileOpen, sessionUser?.id, sessionUser?.rol])
 
   useEffect(() => {
-    document.body.classList.toggle('compact-ui', uiSettings.compact)
-    document.documentElement.style.fontSize =
-      uiSettings.fontScale === 'sm' ? '14px' : uiSettings.fontScale === 'lg' ? '17px' : '16px'
-
-    if (uiSettings.accentTone === 'blue') {
-      document.documentElement.style.setProperty('--accent', '#60a5fa')
-      document.documentElement.style.setProperty('--accent-2', '#3b82f6')
-    } else if (uiSettings.accentTone === 'emerald') {
-      document.documentElement.style.setProperty('--accent', '#34d399')
-      document.documentElement.style.setProperty('--accent-2', '#10b981')
-    } else {
-      document.documentElement.style.setProperty('--accent', '#fde047')
-      document.documentElement.style.setProperty('--accent-2', '#facc15')
-    }
-
-    if (uiSettings.uiSurface === 'clean') {
-      document.documentElement.style.setProperty('--bg', '#ffffff')
-      document.documentElement.style.setProperty('--panel-2', '#f8fafc')
-    } else {
-      document.documentElement.style.setProperty('--bg', '#f3f4f6')
-      document.documentElement.style.setProperty('--panel-2', '#f8fafc')
-    }
+    applyUiSettings(uiSettings)
   }, [uiSettings])
 
   const saveProfileAndPreferences = async () => {
@@ -237,16 +289,16 @@ export function Header({
       }
       localStorage.setItem(`profile_settings_${userId}`, JSON.stringify(profile))
       localStorage.setItem(`ui_settings_${userId}`, JSON.stringify(uiSettings))
+      applyUiSettings(uiSettings)
       if (sessionUser) {
         persistSession(getSessionToken() || '', {
           ...sessionUser,
           nombre_panel: profile.displayName || sessionUser.nombre_panel,
         })
-        storeProfilePhoto(sessionUser.id as number | string | undefined, profile.avatarDataUrl || null)
+        syncProfilePhoto(sessionUser.id as number | string | undefined, profile.avatarDataUrl || null)
       }
       setProfileFeedback('Perfil y personalización guardados.')
       setProfileOpen(false)
-      setUserOpen(false)
       setNotifOpen(false)
     } catch (e) {
       setProfileFeedback(e instanceof Error ? e.message : 'No se pudo guardar el perfil')
@@ -273,10 +325,18 @@ export function Header({
             avatarDataUrl: dataUrl,
           }
           localStorage.setItem(`profile_settings_${userId}`, JSON.stringify(cached))
-          storeProfilePhoto(sessionUser.id as number | string | undefined, dataUrl)
+          syncProfilePhoto(sessionUser.id as number | string | undefined, dataUrl)
           if (sessionUser) {
             persistSession(getSessionToken() || '', { ...sessionUser })
           }
+          setProfileFeedback('Foto guardada en el sistema.')
+        } else if (sessionUser?.rol === 'docente') {
+          await updateTeacherPerfil({ foto_url: dataUrl })
+          syncProfilePhoto(sessionUser.id as number | string | undefined, dataUrl)
+          setProfileFeedback('Foto guardada en el sistema.')
+        } else if (sessionUser?.rol === 'estudiante') {
+          await updateStudentPerfil({ foto_url: dataUrl })
+          syncProfilePhoto(sessionUser.id as number | string | undefined, dataUrl)
           setProfileFeedback('Foto guardada en el sistema.')
         }
       } catch (e) {
@@ -350,14 +410,13 @@ export function Header({
 
           <div
             ref={rootRef}
-            className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 pl-1 pr-1 sm:gap-2 sm:pr-2 md:pl-3 lg:pl-4 lg:pr-2"
+            className="ml-auto flex min-w-0 shrink-0 items-center gap-2 pl-1 pr-1 sm:gap-3 sm:pr-2 md:pl-3 lg:pl-4 lg:pr-2"
           >
             <div className="relative">
               <button
                 type="button"
                 onClick={() => {
                   setNotifOpen((v) => !v)
-                  setUserOpen(false)
                 }}
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white"
                 aria-label="Notificaciones"
@@ -393,71 +452,29 @@ export function Header({
               ) : null}
             </div>
 
-            <div className="relative">
+            <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
+              <p
+                className="max-w-[10rem] truncate text-sm font-bold uppercase tracking-wide text-white sm:max-w-[14rem] sm:text-base md:max-w-[16rem] md:text-lg"
+                title={nombreCabecera}
+              >
+                {nombreCabecera}
+              </p>
               <button
                 type="button"
-                aria-expanded={userOpen}
-                aria-haspopup="menu"
-                title="Cuenta y configuración"
-                onClick={() => {
-                  setUserOpen((v) => !v)
-                  setNotifOpen(false)
-                }}
-                className="hidden max-w-[200px] items-center gap-1.5 rounded-lg border border-transparent px-1.5 py-1 text-right transition hover:border-white/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:max-w-[240px] md:flex md:max-w-[280px] lg:max-w-[320px]"
+                title="Configurar perfil"
+                aria-label="Configurar perfil"
+                onClick={abrirPanelConfiguracion}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white transition hover:border-white/35 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
-                <p className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight text-white">
-                  {nombreCabecera}
-                </p>
-                <ChevronDown
-                  size={16}
-                  strokeWidth={2.25}
-                  className={cn('shrink-0 text-white/70 transition', userOpen && 'rotate-180')}
-                />
+                <Settings size={16} strokeWidth={2} />
               </button>
-
-              <button
-                type="button"
-                aria-expanded={userOpen}
-                aria-haspopup="menu"
-                title="Cuenta y configuración"
-                onClick={() => {
-                  setUserOpen((v) => !v)
-                  setNotifOpen(false)
-                }}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] md:hidden"
-              >
-                <Settings size={17} />
-                <span className="sr-only">Cuenta y configuración</span>
-              </button>
-
-              {userOpen ? (
-                <div
-                  className="absolute right-0 z-40 mt-1.5 w-56 overflow-hidden rounded-xl border border-white/20 bg-slate-900/95 shadow-soft backdrop-blur-sm"
-                  role="menu"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-white/10"
-                    onClick={() => {
-                      setUserOpen(false)
-                      setProfileOpen(true)
-                      setProfileFeedback(null)
-                      setPasswordFeedback(null)
-                    }}
-                  >
-                    <Settings size={16} />
-                    Configurar perfil
-                  </button>
-                </div>
-              ) : null}
             </div>
 
             <div
               className="pointer-events-none flex shrink-0 select-none items-center justify-center"
               aria-hidden="true"
             >
-              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 shadow-[0_4px_16px_rgba(15,23,42,0.35)] ring-2 ring-white/25 sm:h-16 sm:w-16">
+              <div className="grid h-[4.25rem] w-[4.25rem] shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 shadow-[0_4px_16px_rgba(15,23,42,0.35)] ring-2 ring-white/25 sm:h-[4.75rem] sm:w-[4.75rem]">
                 {profile.avatarDataUrl ? (
                   <img
                     src={profile.avatarDataUrl}
@@ -465,7 +482,7 @@ export function Header({
                     className="block h-full w-full object-cover object-center"
                   />
                 ) : (
-                  <UserCircle2 className="h-8 w-8 text-[var(--muted)] sm:h-9 sm:w-9" strokeWidth={1.35} />
+                  <UserCircle2 className="h-10 w-10 text-[var(--muted)] sm:h-11 sm:w-11" strokeWidth={1.35} />
                 )}
               </div>
             </div>
@@ -510,16 +527,14 @@ export function Header({
               <input
                 value={profile.displayName}
                 onChange={(e) => setProfile((prev) => ({ ...prev, displayName: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-[var(--border)] bg-white px-3 text-sm"
+                className={profileFieldClass}
               />
             </label>
 
-            {sessionUser?.rol === 'admin' ? (
+            {fichaPerfilCompleta ? (
               <div className="rounded-lg border border-[var(--border)] bg-white/90 p-3">
-                <p className="text-xs font-semibold text-[var(--muted)]">Datos de administrador</p>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                  Nombre, documento, cargo, foto y contraseña se gestionan en la ficha completa del administrador.
-                </p>
+                <p className="text-xs font-semibold text-[var(--muted)]">{fichaPerfilCompleta.titulo}</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{fichaPerfilCompleta.descripcion}</p>
                 <Button
                   size="sm"
                   variant="secondary"
@@ -527,63 +542,15 @@ export function Header({
                   className="mt-2"
                   onClick={() => {
                     setProfileOpen(false)
-                    setUserOpen(false)
-                    navigate('/admin/perfil')
+                    navigate(fichaPerfilCompleta.ruta)
                   }}
                 >
                   Editar datos completos
                 </Button>
               </div>
             ) : null}
-          </section>
 
-          <section className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
-            <p className="text-sm font-semibold text-[var(--text)]">Personalizar interfaz</p>
-            <label className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-white px-3 py-2">
-              <span className="inline-flex items-center gap-2 text-sm"><Monitor size={14} /> Modo compacto</span>
-              <input
-                type="checkbox"
-                checked={uiSettings.compact}
-                onChange={(e) => setUiSettings((prev) => ({ ...prev, compact: e.target.checked }))}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 inline-flex items-center gap-2 text-xs font-semibold text-[var(--muted)]"><Type size={13} /> Tamaño de texto</span>
-              <select
-                value={uiSettings.fontScale}
-                onChange={(e) => setUiSettings((prev) => ({ ...prev, fontScale: e.target.value as FontScale }))}
-                className="h-10 w-full rounded-lg border border-[var(--border)] bg-white px-3 text-sm"
-              >
-                <option value="sm">Compacto</option>
-                <option value="md">Normal</option>
-                <option value="lg">Grande</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 inline-flex items-center gap-2 text-xs font-semibold text-[var(--muted)]"><Brush size={13} /> Color de acento</span>
-              <select
-                value={uiSettings.accentTone}
-                onChange={(e) => setUiSettings((prev) => ({ ...prev, accentTone: e.target.value as AccentTone }))}
-                className="h-10 w-full rounded-lg border border-[var(--border)] bg-white px-3 text-sm"
-              >
-                <option value="amber">Amarillo institucional</option>
-                <option value="blue">Azul profesional</option>
-                <option value="emerald">Verde moderno</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 inline-flex items-center gap-2 text-xs font-semibold text-[var(--muted)]"><Settings size={13} /> Estilo visual</span>
-              <select
-                value={uiSettings.uiSurface}
-                onChange={(e) => setUiSettings((prev) => ({ ...prev, uiSurface: e.target.value as UiSurface }))}
-                className="h-10 w-full rounded-lg border border-[var(--border)] bg-white px-3 text-sm"
-              >
-                <option value="soft">SaaS suave</option>
-                <option value="clean">Limpio minimalista</option>
-              </select>
-            </label>
-
-            <div className="rounded-lg border border-[var(--border)] bg-white p-3">
+            <div className="rounded-lg border border-[var(--border)] bg-white/90 p-3">
               <p className="mb-2 inline-flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={14} /> Cambiar contraseña</p>
               <div className="space-y-2">
                 <input
@@ -610,6 +577,145 @@ export function Header({
                 <Button size="sm" variant="secondary" onClick={() => void onChangePassword()} disabled={savingProfile}>
                   Actualizar contraseña
                 </Button>
+              </div>
+            </div>
+          </section>
+
+          <section className="flex max-h-[min(68vh,34rem)] flex-col rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-[var(--text)]">Personalizar interfaz</p>
+              <button
+                type="button"
+                title="Restablecer predeterminados"
+                onClick={() => setUiSettings({ ...DEFAULT_UI_SETTINGS })}
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-white px-2 py-1 text-[11px] font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+              >
+                <RotateCcw size={11} />
+                Restablecer
+              </button>
+            </div>
+
+            <div className="ui-prefs-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5">
+              <div className="space-y-2">
+                <p className={uiGroupLabelClass}>Diseño</p>
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  <label className={uiToggleClass}>
+                    <span className="inline-flex items-center gap-1.5 text-xs"><Monitor size={13} /> Modo compacto</span>
+                    <input
+                      type="checkbox"
+                      checked={uiSettings.compact}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, compact: e.target.checked }))}
+                    />
+                  </label>
+                  <label className={uiToggleClass}>
+                    <span className="inline-flex items-center gap-1.5 text-xs"><Contrast size={13} /> Alto contraste</span>
+                    <input
+                      type="checkbox"
+                      checked={uiSettings.highContrast}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, highContrast: e.target.checked }))}
+                    />
+                  </label>
+                  <label className={cn(uiToggleClass, 'sm:col-span-2')}>
+                    <span className="inline-flex items-center gap-1.5 text-xs"><Sparkles size={13} /> Reducir animaciones</span>
+                    <input
+                      type="checkbox"
+                      checked={uiSettings.reduceMotion}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, reduceMotion: e.target.checked }))}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className={uiGroupLabelClass}>Texto y tablas</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted)]"><Type size={12} /> Tamaño de texto</span>
+                    <select
+                      value={uiSettings.fontScale}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, fontScale: e.target.value as UserInterfaceSettings['fontScale'] }))}
+                      className={uiSelectClass}
+                    >
+                      <option value="sm">Compacto</option>
+                      <option value="md">Normal</option>
+                      <option value="lg">Grande</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted)]"><Table2 size={12} /> Densidad tablas</span>
+                    <select
+                      value={uiSettings.tableDensity}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, tableDensity: e.target.value as UserInterfaceSettings['tableDensity'] }))}
+                      className={uiSelectClass}
+                    >
+                      <option value="comfortable">Cómoda</option>
+                      <option value="compact">Compacta</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className={uiGroupLabelClass}>Color y fondo</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted)]"><Brush size={12} /> Color de acento</span>
+                    <select
+                      value={uiSettings.accentTone}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, accentTone: e.target.value as UserInterfaceSettings['accentTone'] }))}
+                      className={uiSelectClass}
+                    >
+                      <option value="amber">Amarillo institucional</option>
+                      <option value="blue">Azul profesional</option>
+                      <option value="emerald">Verde moderno</option>
+                      <option value="violet">Violeta creativo</option>
+                      <option value="rose">Rosa vibrante</option>
+                      <option value="slate">Gris sobrio</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted)]"><LayoutGrid size={12} /> Estilo de fondo</span>
+                    <select
+                      value={uiSettings.uiSurface}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, uiSurface: e.target.value as UserInterfaceSettings['uiSurface'] }))}
+                      className={uiSelectClass}
+                    >
+                      <option value="soft">SaaS suave</option>
+                      <option value="clean">Limpio minimalista</option>
+                      <option value="warm">Cálido acogedor</option>
+                      <option value="elegant">SaaS elegante</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className={uiGroupLabelClass}>Detalle visual</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted)]"><Settings size={12} /> Esquinas</span>
+                    <select
+                      value={uiSettings.cornerStyle}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, cornerStyle: e.target.value as UserInterfaceSettings['cornerStyle'] }))}
+                      className={uiSelectClass}
+                    >
+                      <option value="round">Redondeadas</option>
+                      <option value="balanced">Moderadas</option>
+                      <option value="sharp">Cuadradas</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted)]"><Maximize2 size={12} /> Ancho contenido</span>
+                    <select
+                      value={uiSettings.contentWidth}
+                      onChange={(e) => setUiSettings((prev) => ({ ...prev, contentWidth: e.target.value as UserInterfaceSettings['contentWidth'] }))}
+                      className={uiSelectClass}
+                    >
+                      <option value="standard">Estándar</option>
+                      <option value="wide">Amplio</option>
+                    </select>
+                  </label>
+                </div>
               </div>
             </div>
           </section>

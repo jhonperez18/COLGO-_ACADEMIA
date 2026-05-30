@@ -3,9 +3,12 @@ import { query } from '../db.js';
 import { authorizeRole } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 import { broadcastSse } from '../realtime/sseHub.js';
+import {
+  ensureDocenteProfileSchema,
+  ensureDocenteRowForUsuario,
+  syncDocentePerfilFromSelfService,
+} from '../utils/personaPerfilSync.js';
 const router = express.Router();
-
-const MAX_FOTO_CHARS = 800000;
 
 // Middleware: solo docentes
 router.use(authorizeRole('docente'));
@@ -17,6 +20,8 @@ router.use(authorizeRole('docente'));
 router.get('/perfil', async (req, res) => {
   try {
     const includeFoto = String(req.query.foto || '') === '1';
+    await ensureDocenteProfileSchema();
+    await ensureDocenteRowForUsuario(req.user.id);
     const docentes = await query(
       `SELECT id, usuario_id, nombre, apellido, documento, telefono, especialidad
        FROM docentes WHERE usuario_id = ? LIMIT 1`,
@@ -65,56 +70,21 @@ router.put(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const docentes = await query('SELECT id FROM docentes WHERE usuario_id = ? LIMIT 1', [req.user.id]);
-      if (!Array.isArray(docentes) || docentes.length === 0) {
+      const data = req.body || {};
+      const perfil = await syncDocentePerfilFromSelfService(req.user.id, data);
+      if (!perfil) {
         return res.status(404).json({ error: 'Perfil de docente no encontrado' });
       }
 
-      const docenteId = Number(docentes[0].id);
-      const data = req.body || {};
-
-      if (Object.prototype.hasOwnProperty.call(data, 'foto_url')) {
-        const raw = data.foto_url == null || data.foto_url === '' ? null : String(data.foto_url);
-        if (raw && raw.length > MAX_FOTO_CHARS) {
-          return res.status(400).json({
-            error: 'La foto es demasiado grande. Usa una imagen más pequeña (por ejemplo menos de 1,5 MB).',
-          });
-        }
-        await query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [raw, req.user.id]);
-      }
-
-      await query(
-        `UPDATE docentes
-         SET nombre = COALESCE(?, nombre),
-             apellido = COALESCE(?, apellido),
-             documento = COALESCE(?, documento),
-             telefono = COALESCE(?, telefono),
-             especialidad = COALESCE(?, especialidad)
-         WHERE id = ?`,
-        [
-          data.nombre ?? null,
-          data.apellido ?? null,
-          data.documento ?? null,
-          data.telefono ?? null,
-          data.especialidad ?? null,
-          docenteId,
-        ],
-      );
-
-      const actualizado = await query('SELECT * FROM docentes WHERE id = ? LIMIT 1', [docenteId]);
-      const uRows = await query('SELECT foto_url FROM usuarios WHERE id = ? LIMIT 1', [req.user.id]);
-      let foto_url = null;
-      if (Array.isArray(uRows) && uRows[0] && uRows[0].foto_url != null && uRows[0].foto_url !== '') {
-        const fv = uRows[0].foto_url;
-        foto_url = Buffer.isBuffer(fv) ? fv.toString('utf8') : String(fv);
-      }
-      const row = Array.isArray(actualizado) && actualizado[0] ? actualizado[0] : null;
       return res.json({
         success: true,
         message: 'Perfil actualizado correctamente',
-        perfil: row ? { ...row, foto_url } : null,
+        perfil,
       });
     } catch (error) {
+      if (error?.status === 400) {
+        return res.status(400).json({ error: error.message });
+      }
       console.error('Error:', error);
       return res.status(500).json({ error: 'Error al actualizar perfil de docente' });
     }

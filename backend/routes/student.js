@@ -1,9 +1,12 @@
 import express from 'express';
 import { query } from '../db.js';
 import { authorizeRole } from '../middleware/auth.js';
+import {
+  ensureEstudianteProfileSchema,
+  ensureEstudianteRowForUsuario,
+  syncEstudiantePerfilFromSelfService,
+} from '../utils/personaPerfilSync.js';
 const router = express.Router();
-
-const MAX_FOTO_CHARS = 800000;
 
 // Middleware: solo estudiantes
 router.use(authorizeRole('estudiante'));
@@ -15,6 +18,8 @@ router.use(authorizeRole('estudiante'));
 router.get('/perfil', async (req, res) => {
   try {
     const includeFoto = String(req.query.foto || '') === '1';
+    await ensureEstudianteProfileSchema();
+    await ensureEstudianteRowForUsuario(req.user.id);
     const estudiantes = await query(
       `SELECT id, usuario_id, nombre, apellido, documento, tipo_documento, telefono,
               direccion, ciudad, pais, departamento, municipio, fecha_nacimiento, estado_civil
@@ -50,93 +55,15 @@ router.get('/perfil', async (req, res) => {
  */
 router.put('/perfil', async (req, res) => {
   try {
-    const {
-      nombre,
-      apellido,
-      documento,
-      tipo_documento,
-      telefono,
-      direccion,
-      ciudad,
-      pais,
-      departamento,
-      municipio,
-      fecha_nacimiento,
-      estado_civil,
-      foto_url,
-    } = req.body;
-
-    // Obtener ID de estudiante
-    const estudiantes = await query(
-      'SELECT id FROM estudiantes WHERE usuario_id = ?',
-      [req.user.id]
-    );
-
-    if (estudiantes.length === 0) {
+    const perfil = await syncEstudiantePerfilFromSelfService(req.user.id, req.body || {});
+    if (!perfil) {
       return res.status(404).json({ error: 'Estudiante no encontrado' });
     }
-
-    if (foto_url !== undefined) {
-      const raw = foto_url == null || foto_url === '' ? null : String(foto_url);
-      if (raw && raw.length > MAX_FOTO_CHARS) {
-        return res.status(400).json({
-          error: 'La foto es demasiado grande. Usa una imagen más pequeña (por ejemplo menos de 1,5 MB).',
-        });
-      }
-      await query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [raw, req.user.id]);
-    }
-
-    const hasProfileFields = [
-      'nombre',
-      'apellido',
-      'documento',
-      'tipo_documento',
-      'telefono',
-      'direccion',
-      'ciudad',
-      'pais',
-      'departamento',
-      'municipio',
-      'fecha_nacimiento',
-      'estado_civil',
-    ].some((k) => Object.prototype.hasOwnProperty.call(req.body || {}, k));
-
-    if (hasProfileFields) {
-      await query(
-        `UPDATE estudiantes
-         SET nombre = COALESCE(?, nombre),
-             apellido = COALESCE(?, apellido),
-             documento = COALESCE(?, documento),
-             tipo_documento = COALESCE(?, tipo_documento),
-             telefono = COALESCE(?, telefono),
-             direccion = COALESCE(?, direccion),
-             ciudad = COALESCE(?, ciudad),
-             pais = COALESCE(?, pais),
-             departamento = COALESCE(?, departamento),
-             municipio = COALESCE(?, municipio),
-             fecha_nacimiento = COALESCE(?, fecha_nacimiento),
-             estado_civil = COALESCE(?, estado_civil)
-         WHERE usuario_id = ?`,
-        [
-          nombre ?? null,
-          apellido ?? null,
-          documento ?? null,
-          tipo_documento ?? null,
-          telefono ?? null,
-          direccion ?? null,
-          ciudad ?? null,
-          pais ?? null,
-          departamento ?? null,
-          municipio ?? null,
-          fecha_nacimiento ?? null,
-          estado_civil ?? null,
-          req.user.id,
-        ],
-      );
-    }
-
-    res.json({ success: true, message: 'Perfil actualizado' });
+    res.json({ success: true, message: 'Perfil actualizado', perfil });
   } catch (error) {
+    if (error?.status === 400) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error:', error);
     res.status(500).json({ error: 'Error al actualizar perfil' });
   }

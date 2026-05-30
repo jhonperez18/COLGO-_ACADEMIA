@@ -4,6 +4,7 @@ import { Sidebar, getNavItems } from '../components/layout/Sidebar'
 import { SIDEBAR_LAYOUT_OFFSET_CLASS } from '../components/layout/SidebarNavButton'
 import { Header } from '../components/layout/Header'
 import { loadSessionUser } from '../state/authSession'
+import { hydrateUiPreferences } from '../utils/uiPreferences'
 import { getApiBase } from '../services/apiClient'
 import { cn } from '../utils/cn'
 import {
@@ -21,6 +22,10 @@ export default function DashboardLayout() {
   const navItems = useMemo(() => getNavItems(rol), [rol])
 
   useEffect(() => {
+    hydrateUiPreferences(loadSessionUser()?.id as number | string | undefined)
+  }, [])
+
+  useEffect(() => {
     const warm = () => {
       void fetch(`${getApiBase()}/health`, { method: 'GET' }).catch(() => {})
     }
@@ -31,6 +36,7 @@ export default function DashboardLayout() {
 
   const activePageLabel = useMemo(() => {
     const pathname = location.pathname.replace(/\/$/, '') || '/'
+    if (pathname.endsWith('/perfil')) return 'Editar datos'
     const roleHome = /^\/(admin|docente|staff|estudiante)$/.test(pathname)
     if (roleHome && navItems.length > 0) {
       return navItems[0].label

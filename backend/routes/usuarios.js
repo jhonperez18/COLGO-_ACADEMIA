@@ -3,7 +3,14 @@ import bcrypt from 'bcryptjs'
 import { query } from '../db.js'
 import { ensureSchemaRuntime } from '../schemaRuntime.js'
 import { sendAdminPasswordResetEmail, sendColgoUsuarioInvitacion } from '../utils/emailService.js'
+import {
+  ETIQUETAS_ESTADO_ACCESO,
+  ESTADOS_ACCESO,
+  activoFromEstadoAcceso,
+  ensureEstadoAccesoColumn,
+} from '../utils/estadoAcceso.js'
 import { generateSecurePassword } from '../utils/passwordGenerator.js'
+import { limpiarUsuariosEHistorial, purgeUsuarioCompletamente } from '../utils/purgeUsuario.js'
 
 const router = express.Router()
 
@@ -555,6 +562,7 @@ async function ensureSupportTables() {
     await backfillPersonaNombresVacios()
     await ensureEstudiantesUbicacionColumns()
     await ensureDocentesExtraColumns()
+    await ensureEstadoAccesoColumn()
     await ensureSchemaRuntime()
     try {
       await query('CREATE INDEX IF NOT EXISTS idx_usuarios_rol_id ON usuarios (rol, id)')
@@ -712,6 +720,16 @@ async function requireStaffPermission(req, res, permissionKey) {
   return true
 }
 
+async function requireGestionarUsuariosOrBloquear(req, res) {
+  if (!isStaffUser(req)) return true
+  await ensureSupportTables()
+  const actorRol = String(req.user?.rol || 'staff').toLowerCase()
+  const perms = await getUserPermissions(Number(req.user?.id || 0), actorRol)
+  if (perms.gestionar_usuarios || perms.bloquear_usuarios) return true
+  res.status(403).json({ error: 'No tienes permisos para cambiar el estado de usuarios.' })
+  return false
+}
+
 function parseCursoIds(input) {
   const list = Array.isArray(input) ? input : input != null ? [input] : []
   const ids = list
@@ -769,7 +787,7 @@ async function ensureEstudianteRow(usuarioId, nombre, apellido, documento, usuar
 /** Detalle admin: nombres desde JOIN o, si falla el esquema, solo desde usuarios + perfil por rol. */
 async function fetchUsuarioDetalleBase(id) {
   await ensurePersonaNombreColumns()
-  const sql = `SELECT u.id, u.email, u.rol, u.activo,
+  const sql = `SELECT u.id, u.email, u.rol, u.activo, u.estado_acceso,
               COALESCE(e.nombre, d.nombre, sp.nombre, ap.nombre, '') AS nombres,
               COALESCE(e.apellido, d.apellido, sp.apellido, ap.apellido, '') AS apellidos,
               COALESCE(e.documento, d.documento, sp.documento, ap.documento, '') AS cedula
@@ -913,7 +931,7 @@ router.get('/', async (req, res) => {
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
-    const cursosExpr = lite
+    const cursosSelect = lite
       ? 'NULL AS cursos_asignados'
       : `CASE
             WHEN u.rol = 'docente' THEN (
@@ -928,24 +946,23 @@ router.get('/', async (req, res) => {
               WHERE m.estudiante_id = e.id AND m.estado = 'activa'
             )
             ELSE NULL
-          END`
+          END AS cursos_asignados`
 
     let usuarios
     try {
       usuarios = await query(
         `
-        SELECT u.id, u.email, u.rol, u.activo, u.ultimo_acceso, NULL AS fecha_creacion,
+        SELECT u.id, u.email, u.rol, u.activo, u.estado_acceso, u.ultimo_acceso, NULL AS fecha_creacion,
           e.id AS estudiante_id,
           d.id AS docente_id,
           COALESCE(
-            TRIM(CONCAT(e.nombre, ' ', e.apellido)),
-            TRIM(CONCAT(d.nombre, ' ', d.apellido)),
-            TRIM(CONCAT(sp.nombre, ' ', sp.apellido)),
-            TRIM(CONCAT(ap.nombre, ' ', ap.apellido)),
-            u.email
+            NULLIF(TRIM(CONCAT(COALESCE(e.nombre, ''), ' ', COALESCE(e.apellido, ''))), ''),
+            NULLIF(TRIM(CONCAT(COALESCE(d.nombre, ''), ' ', COALESCE(d.apellido, ''))), ''),
+            NULLIF(TRIM(CONCAT(COALESCE(sp.nombre, ''), ' ', COALESCE(sp.apellido, ''))), ''),
+            NULLIF(TRIM(CONCAT(COALESCE(ap.nombre, ''), ' ', COALESCE(ap.apellido, ''))), '')
           ) AS nombre_completo,
           COALESCE(e.documento, d.documento, sp.documento, ap.documento) AS documento,
-          ${cursosExpr} AS cursos_asignados,
+          ${cursosSelect},
           COALESCE(up.nivel_confianza, 'baja') AS nivel_confianza
         FROM usuarios u
         LEFT JOIN estudiantes e ON e.usuario_id = u.id
@@ -959,14 +976,23 @@ router.get('/', async (req, res) => {
       `,
         [...params, limit, offset],
       )
-    } catch {
+    } catch (listErr) {
+      console.error('[usuarios/list] consulta principal:', listErr?.code, listErr?.sqlMessage || listErr?.message)
       usuarios = await query(
         `
-        SELECT u.id, u.email, u.rol, u.activo, NULL AS ultimo_acceso, NULL AS fecha_creacion,
-               NULL AS estudiante_id, NULL AS docente_id,
-               u.email AS nombre_completo, NULL AS documento,
+        SELECT u.id, u.email, u.rol, u.activo,
+               COALESCE(u.estado_acceso, IF(u.activo, 'activo', 'suspendido')) AS estado_acceso,
+               NULL AS ultimo_acceso, NULL AS fecha_creacion,
+               e.id AS estudiante_id, d.id AS docente_id,
+               COALESCE(
+                 NULLIF(TRIM(CONCAT(COALESCE(e.nombre, ''), ' ', COALESCE(e.apellido, ''))), ''),
+                 NULLIF(TRIM(CONCAT(COALESCE(d.nombre, ''), ' ', COALESCE(d.apellido, ''))), '')
+               ) AS nombre_completo,
+               COALESCE(e.documento, d.documento) AS documento,
                NULL AS cursos_asignados, 'baja' AS nivel_confianza
         FROM usuarios u
+        LEFT JOIN estudiantes e ON e.usuario_id = u.id
+        LEFT JOIN docentes d ON d.usuario_id = u.id
         ${whereSql}
         ORDER BY u.id DESC
         LIMIT ? OFFSET ?
@@ -1265,6 +1291,18 @@ router.get('/:id/detalle', async (req, res) => {
         }
       }
     }
+    if (String(base.rol) === 'docente') {
+      const seedNombre = base.nombres || String(base.email || '').split('@')[0] || '—'
+      await ensureDocenteRow(id, seedNombre, base.apellidos || '—', base.cedula || null)
+      if (!base.nombres || !base.cedula) {
+        const refreshed = await fetchUsuarioDetalleBase(id)
+        if (refreshed) {
+          base.nombres = refreshed.nombres || base.nombres
+          base.apellidos = refreshed.apellidos || base.apellidos
+          base.cedula = refreshed.cedula || base.cedula
+        }
+      }
+    }
     if (includeFoto) {
       const foto_url = await readFotoUrlForUsuario(id)
       if (foto_url) base.foto_url = foto_url
@@ -1425,7 +1463,10 @@ router.put('/:id', async (req, res) => {
       await query('UPDATE usuarios SET email = ? WHERE id = ?', [email, id])
     }
     if (typeof activoRaw === 'boolean') {
-      await query('UPDATE usuarios SET activo = ? WHERE id = ?', [Boolean(activoRaw), id])
+      await ensureEstadoAccesoColumn()
+      const activo = Boolean(activoRaw)
+      const estadoAcceso = activo ? 'activo' : 'suspendido'
+      await query('UPDATE usuarios SET activo = ?, estado_acceso = ? WHERE id = ?', [activo, estadoAcceso, id])
     }
 
     if (rol === 'estudiante') {
@@ -1615,13 +1656,19 @@ router.get('/validate', async (req, res) => {
     let cedulaExists = false
     let emailRol = null
     let emailId = null
+    let emailEstado = null
 
     if (email) {
-      const dupEmail = await query('SELECT id, rol FROM usuarios WHERE LOWER(email) = LOWER(?) LIMIT 1', [email])
+      const dupEmail = await query(
+        'SELECT id, rol, activo, estado_acceso FROM usuarios WHERE LOWER(email) = LOWER(?) LIMIT 1',
+        [email],
+      )
       if (Array.isArray(dupEmail) && dupEmail.length > 0) {
         emailExists = true
         emailId = Number(dupEmail[0].id)
         emailRol = String(dupEmail[0].rol || '')
+        const estadoRaw = String(dupEmail[0].estado_acceso || (dupEmail[0].activo ? 'activo' : 'suspendido'))
+        emailEstado = estadoRaw
       }
     }
 
@@ -1634,6 +1681,12 @@ router.get('/validate', async (req, res) => {
       emailExists,
       emailId,
       emailRol,
+      emailEstado,
+      emailHint: emailExists
+        ? emailEstado === 'finalizado' || emailEstado === 'cancelado'
+          ? `Este correo pertenece a un usuario ${emailEstado} (ID ${emailId}). Elimínalo desde la lista para poder reutilizarlo.`
+          : `Este correo ya está registrado (ID ${emailId}, ${emailRol || 'usuario'}).`
+        : null,
       available: !cedulaExists && !emailExists,
     })
   } catch (err) {
@@ -1852,18 +1905,33 @@ router.get('/:id/supervision', async (req, res) => {
 })
 
 /**
- * PATCH /api/usuarios/:id/estado — activar/desactivar usuario
+ * PATCH /api/usuarios/:id/estado — estado de acceso al panel (activo | suspendido | cancelado | finalizado)
  */
 router.patch('/:id/estado', async (req, res) => {
   const id = Number(req.params.id)
-  const activo = Boolean(req.body?.activo)
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ error: 'ID inválido' })
   }
 
+  let estadoAcceso = null
+  if (req.body?.estado_acceso != null) {
+    const raw = String(req.body.estado_acceso).trim().toLowerCase()
+    if (!ESTADOS_ACCESO.includes(raw)) {
+      return res.status(400).json({
+        error: 'Estado inválido. Use: activo, suspendido, cancelado o finalizado.',
+      })
+    }
+    estadoAcceso = raw
+  } else if (typeof req.body?.activo === 'boolean') {
+    estadoAcceso = req.body.activo ? 'activo' : 'suspendido'
+  } else {
+    return res.status(400).json({ error: 'Debe enviar estado_acceso o activo.' })
+  }
+
   try {
-    if (!(await requireStaffPermission(req, res, 'bloquear_usuarios'))) return
+    if (!(await requireGestionarUsuariosOrBloquear(req, res))) return
     await ensureSupportTables()
+    await ensureEstadoAccesoColumn()
     const userRows = await query('SELECT id, rol FROM usuarios WHERE id = ? LIMIT 1', [id])
     if (!Array.isArray(userRows) || userRows.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' })
@@ -1872,22 +1940,27 @@ router.patch('/:id/estado', async (req, res) => {
     if (isStaffUser(req) && isAdminRole(targetRol)) {
       return res.status(403).json({ error: 'Staff no puede cambiar estado de administradores.' })
     }
+    if (req.user?.id && Number(req.user.id) === id && estadoAcceso !== 'activo') {
+      return res.status(403).json({ error: 'No puedes cambiar tu propio estado de acceso.' })
+    }
 
-    await query('UPDATE usuarios SET activo = ? WHERE id = ?', [activo, id])
+    const activo = activoFromEstadoAcceso(estadoAcceso)
+    await query('UPDATE usuarios SET estado_acceso = ?, activo = ? WHERE id = ?', [estadoAcceso, activo, id])
+    const etiqueta = ETIQUETAS_ESTADO_ACCESO[estadoAcceso] || estadoAcceso
     await query('INSERT INTO auditoria (usuario_id, accion, tabla_afectada) VALUES (?, ?, ?)', [
       id,
-      activo ? 'Usuario activado' : 'Usuario desactivado',
+      `Estado de acceso: ${etiqueta}`,
       'usuarios',
     ])
     await logActividad({
       actorId: Number(req.user?.id || 0) || null,
       actorRol: String(req.user?.rol || ''),
       objetivoId: id,
-      accion: activo ? 'usuario_activado' : 'usuario_bloqueado',
-      detalle: `Cambio de estado a ${activo ? 'activo' : 'bloqueado'}`,
+      accion: activo ? 'usuario_activado' : 'usuario_estado_acceso',
+      detalle: `Estado de acceso cambiado a ${etiqueta}`,
       ip: req.ip,
     })
-    return res.json({ success: true, id, activo })
+    return res.json({ success: true, id, estado_acceso: estadoAcceso, activo })
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'Error actualizando estado de usuario' })
@@ -1919,9 +1992,7 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' })
     }
 
-    await query('DELETE FROM estudiantes WHERE usuario_id = ?', [id])
-    await query('DELETE FROM docentes WHERE usuario_id = ?', [id])
-    await query('DELETE FROM usuarios WHERE id = ?', [id])
+    await purgeUsuarioCompletamente(id)
     await query('INSERT INTO auditoria (usuario_id, accion, tabla_afectada) VALUES (?, ?, ?)', [
       req.user?.id ?? null,
       `Usuario ${id} eliminado definitivamente`,
@@ -2099,7 +2170,7 @@ router.post('/', async (req, res) => {
     }
     if (usuarioId) {
       try {
-        await query('DELETE FROM usuarios WHERE id = ?', [usuarioId])
+        await purgeUsuarioCompletamente(usuarioId)
       } catch (e) {
         console.error('Rollback usuario:', e)
       }
@@ -2139,7 +2210,7 @@ router.post('/', async (req, res) => {
   // Alta de usuario SOLO si el correo de bienvenida se envía exitosamente.
   if (!emailResult.success) {
     try {
-      await query('DELETE FROM usuarios WHERE id = ?', [usuarioId])
+      await purgeUsuarioCompletamente(usuarioId)
     } catch (rollbackErr) {
       console.error('Rollback usuario por fallo SMTP:', rollbackErr)
     }
@@ -2165,6 +2236,38 @@ router.post('/', async (req, res) => {
     detalle: `Creación de usuario con rol ${rolDb}`,
     ip: req.ip,
   })
+})
+
+/**
+ * POST /api/usuarios/limpieza — admin: elimina usuarios finalizados/prueba y limpia historial huérfano
+ */
+router.post('/limpieza', async (req, res) => {
+  if (String(req.user?.rol || '') !== 'admin') {
+    return res.status(403).json({ error: 'Solo administradores pueden ejecutar la limpieza.' })
+  }
+  try {
+    await ensureSupportTables()
+    await ensureEstadoAccesoColumn()
+    const resumen = await limpiarUsuariosEHistorial({
+      purgeFinalizados: req.body?.purge_finalizados !== false,
+      purgeTestAuto: req.body?.purge_test !== false,
+      purgeHistorialHuerfano: req.body?.purge_historial !== false,
+      purgeLoginsAntiguos: req.body?.purge_logins !== false,
+      diasLogins: Number(req.body?.dias_logins) || 14,
+    })
+    await logActividad({
+      actorId: Number(req.user?.id || 0) || null,
+      actorRol: String(req.user?.rol || ''),
+      objetivoId: null,
+      accion: 'limpieza_usuarios',
+      detalle: `Limpieza: ${resumen.usuariosEliminados.length} usuario(s), ${resumen.actividadHuerfana} actividad huérfana`,
+      ip: req.ip,
+    })
+    return res.json({ success: true, ...resumen })
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'Error ejecutando limpieza' })
+  }
 })
 
 export default router

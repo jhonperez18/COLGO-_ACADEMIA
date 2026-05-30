@@ -6,12 +6,14 @@ export function KpiCard({
   sublabel,
   accent = false,
   className,
+  loading = false,
 }: {
   label: string
   value: string
   sublabel?: string
   accent?: boolean
   className?: string
+  loading?: boolean
 }) {
   return (
     <div className={cn('flex flex-col', className)}>
@@ -23,9 +25,18 @@ export function KpiCard({
         )}
       >
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-2xl font-semibold text-[var(--text)]">{value}</div>
-            {sublabel ? <p className="mt-1 text-xs text-[var(--muted)]">{sublabel}</p> : null}
+          <div className="min-w-0 flex-1">
+            {loading ? (
+              <>
+                <div className="h-8 w-20 animate-pulse rounded-md bg-[var(--panel-2)]" />
+                <div className="mt-2 h-3 w-28 animate-pulse rounded bg-[var(--panel-2)]" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-semibold text-[var(--text)]">{value}</div>
+                {sublabel ? <p className="mt-1 text-xs text-[var(--muted)]">{sublabel}</p> : null}
+              </>
+            )}
           </div>
           <div
             aria-hidden="true"

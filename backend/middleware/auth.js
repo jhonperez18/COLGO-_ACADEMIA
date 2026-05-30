@@ -1,8 +1,13 @@
 import jwt from 'jsonwebtoken';
+import {
+  fetchEstadoAccesoUsuario,
+  mensajeAccesoDenegado,
+  puedeAccederPanel,
+} from '../utils/estadoAcceso.js';
 
 /**
  * Middleware de autenticación JWT
- * Verifica que el usuario tenga un token válido
+ * Verifica que el usuario tenga un token válido y acceso activo al panel
  */
 export function authenticateJWT(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -14,10 +19,26 @@ export function authenticateJWT(req, res, next) {
 
   const secret = process.env.JWT_SECRET || 'tu_clave_secreta_muy_segura_aqui';
 
-  jwt.verify(token, secret, (err, user) => {
+  jwt.verify(token, secret, async (err, user) => {
     if (err) {
       console.error('Error al verificar token:', err.message);
       return res.status(401).json({ error: 'Token inválido o expirado' });
+    }
+
+    try {
+      const estado = await fetchEstadoAccesoUsuario(Number(user?.id || 0));
+      if (!estado) {
+        return res.status(401).json({ error: 'Usuario no encontrado' });
+      }
+      if (!puedeAccederPanel(estado)) {
+        return res.status(403).json({
+          error: mensajeAccesoDenegado(estado),
+          estado_acceso: estado,
+        });
+      }
+    } catch (checkErr) {
+      console.error('[auth] verificación estado_acceso:', checkErr?.message || checkErr);
+      return res.status(503).json({ error: 'No se pudo verificar el acceso. Intenta de nuevo.' });
     }
 
     req.user = user;

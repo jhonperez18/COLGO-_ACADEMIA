@@ -44,16 +44,23 @@ import {
   inscribirEstudiantesCurso,
   resendUsuarioWelcomeEmail,
   resetUsuarioPasswordAdmin,
-  toggleUsuarioActivo,
+  updateUsuarioEstadoAcceso,
   updateUsuarioAdmin,
   updateUsuarioPermisosAdmin,
   type ActividadUsuario,
+  type EstadoAcceso,
   type RolApi,
   type UsuarioDetalleAdmin,
   type UsuarioListaItem,
   type UsuarioPermisos,
 } from '../services/apiClient'
 import { loadSessionUser, type UserRole } from '../state/authSession'
+import {
+  ESTADOS_ACCESO,
+  ETIQUETA_ESTADO_ACCESO,
+  claseBadgeEstadoAcceso,
+  resolveEstadoAcceso,
+} from '../utils/estadoAcceso'
 import { PAIS_COLOMBIA, PAISES_OPCIONES } from '../data/paisesLista'
 import { useColombiaMunicipios } from '../hooks/useColombiaMunicipios'
 
@@ -267,6 +274,7 @@ export default function AdminMiembroPanelPage() {
       email: String(detalle.email || ''),
       rol: detalle.rol,
       activo: Boolean(detalle.activo),
+      estado_acceso: detalle.estado_acceso,
       nombre_completo: `${nombres} ${apellidos}`.trim() || String(detalle.email || ''),
       documento: String(detalle.cedula || ''),
       nivel_confianza: 'baja',
@@ -325,6 +333,31 @@ export default function AdminMiembroPanelPage() {
       setCargandoDetalle(false)
     }
   }, [id, idValid, aplicarDetalleEnFormulario])
+
+  const recargarDetalleSilencioso = useCallback(async () => {
+    if (!idValid) return
+    try {
+      const detalle = await getUsuarioDetalleAdmin(id)
+      aplicarDetalleEnFormulario(detalle)
+    } catch {
+      /* ignorar en refresco en segundo plano */
+    }
+  }, [id, idValid, aplicarDetalleEnFormulario])
+
+  useEffect(() => {
+    if (tab !== 'resumen') return
+    void recargarDetalleSilencioso()
+  }, [tab, recargarDetalleSilencioso])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && tab === 'resumen') {
+        void recargarDetalleSilencioso()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [tab, recargarDetalleSilencioso])
 
   useEffect(() => {
     if (!listaItem || tab !== 'cursos') return
@@ -462,7 +495,6 @@ export default function AdminMiembroPanelPage() {
           apellidos: formEditar.apellidos.trim(),
           cedula: formEditar.cedula.trim(),
           email: emailLimpio,
-          activo: formEditar.activo,
           ...(formEditar.rol === 'estudiante'
             ? {
                 telefono: telefonoLimpio,
@@ -570,15 +602,17 @@ export default function AdminMiembroPanelPage() {
     })()
   }
 
-  const toggleActivo = () => {
-    if (!listaItem) return
+  const cambiarEstadoAcceso = (estado: EstadoAcceso) => {
+    if (!listaItem || listaItem.rol === 'admin') return
+    const actual = resolveEstadoAcceso(listaItem)
+    if (estado === actual) return
     void (async () => {
       setCambiandoEstado(true)
       setError(null)
       setMensaje(null)
       try {
-        await toggleUsuarioActivo(listaItem.id, !listaItem.activo)
-        setMensaje(listaItem.activo ? 'Usuario desactivado.' : 'Usuario activado.')
+        await updateUsuarioEstadoAcceso(listaItem.id, estado)
+        setMensaje(`Estado actualizado a ${ETIQUETA_ESTADO_ACCESO[estado]}.`)
         await cargar()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'No se pudo cambiar el estado')
@@ -821,10 +855,14 @@ export default function AdminMiembroPanelPage() {
                     </span>
                     <span
                       className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold backdrop-blur-sm ${
-                        u.activo ? 'border-emerald-400/30 bg-emerald-500/20 text-emerald-50' : 'border-red-400/35 bg-red-500/25 text-red-50'
+                        resolveEstadoAcceso(u) === 'activo'
+                          ? 'border-emerald-400/30 bg-emerald-500/20 text-emerald-50'
+                          : resolveEstadoAcceso(u) === 'suspendido'
+                            ? 'border-amber-400/35 bg-amber-500/20 text-amber-50'
+                            : 'border-red-400/35 bg-red-500/25 text-red-50'
                       }`}
                     >
-                      {u.activo ? 'Cuenta activa' : 'Cuenta bloqueada'}
+                      {ETIQUETA_ESTADO_ACCESO[resolveEstadoAcceso(u)]}
                     </span>
                   </div>
                   <p className="flex max-w-full items-center gap-2 text-sm text-white/75">
@@ -837,16 +875,24 @@ export default function AdminMiembroPanelPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1 border-t border-white/10 pt-1.5 sm:border-t-0 sm:pt-0 lg:flex-col lg:items-stretch lg:border-t-0 lg:pt-0">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={cambiandoEstado}
-                    onClick={toggleActivo}
-                    className="h-7 min-h-0 border-white/20 bg-white/10 px-2.5 text-xs font-medium text-white hover:bg-white/18 lg:min-w-[10.5rem]"
-                  >
-                    {cambiandoEstado ? '…' : u.activo ? 'Desactivar' : 'Activar'}
-                  </Button>
+                  {u.rol !== 'admin' ? (
+                    <select
+                      value={resolveEstadoAcceso(u)}
+                      disabled={cambiandoEstado}
+                      aria-label="Estado de acceso al panel"
+                      className={cn(
+                        'h-7 min-h-0 rounded-md border px-2 text-xs font-semibold outline-none lg:min-w-[10.5rem]',
+                        'border-white/20 bg-white/10 text-white',
+                      )}
+                      onChange={(e) => cambiarEstadoAcceso(e.target.value as EstadoAcceso)}
+                    >
+                      {ESTADOS_ACCESO.map((opt) => (
+                        <option key={opt} value={opt} className="text-slate-900">
+                          {ETIQUETA_ESTADO_ACCESO[opt]}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
@@ -945,7 +991,9 @@ export default function AdminMiembroPanelPage() {
               </div>
               <div className="flex min-w-0 flex-none flex-col justify-center p-3.5 lg:w-[7.5rem] xl:w-[8.5rem]">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Estado de cuenta</p>
-                <p className="mt-1 text-sm font-medium text-[var(--text)]">{u.activo ? 'Activa' : 'Bloqueada'}</p>
+                <p className={`mt-1 text-sm font-medium ${claseBadgeEstadoAcceso(resolveEstadoAcceso(u))}`}>
+                  {ETIQUETA_ESTADO_ACCESO[resolveEstadoAcceso(u)]}
+                </p>
               </div>
               <div className="min-w-0 flex-1 p-3.5">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Último acceso</p>
@@ -1256,14 +1304,6 @@ export default function AdminMiembroPanelPage() {
                 </label>
               </div>
             ) : null}
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 px-4 py-3 text-sm font-medium text-[var(--text)] lg:col-span-2">
-              <input
-                type="checkbox"
-                checked={formEditar.activo}
-                onChange={(e) => setFormEditar((f) => ({ ...f, activo: e.target.checked }))}
-              />
-              Cuenta activa
-            </label>
           </div>
           <div className="mt-4 flex justify-end">
             <Button type="submit" size="sm" disabled={guardandoPerfil}>

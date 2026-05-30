@@ -51,6 +51,15 @@ export function StaffDashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    const onProfileUpdated = (event: Event) => {
+      const nombre = (event as CustomEvent<{ nombre?: string }>).detail?.nombre
+      if (nombre?.trim()) setSaludo(`Hola, ${nombre.trim()}`)
+    }
+    window.addEventListener('colgo:profile-updated', onProfileUpdated)
+    return () => window.removeEventListener('colgo:profile-updated', onProfileUpdated)
+  }, [])
+
   const seccion = useMemo<'dashboard' | 'usuarios' | 'perfil'>(() => {
     if (location.pathname.endsWith('/usuarios')) return 'usuarios'
     if (location.pathname.endsWith('/perfil')) return 'perfil'
@@ -76,6 +85,9 @@ export function StaffDashboardPage() {
       setSaludo(`Hola, ${perfilForm.nombre.trim()}`)
       setProfileOk('Perfil actualizado correctamente.')
       setToast('Datos guardados')
+      window.dispatchEvent(
+        new CustomEvent('colgo:profile-updated', { detail: { nombre: perfilForm.nombre.trim() } }),
+      )
     } catch (e) {
       setProfileError(e instanceof Error ? e.message : 'No se pudo actualizar el perfil')
     } finally {
@@ -101,20 +113,15 @@ export function StaffDashboardPage() {
             <Button type="button" variant="secondary" onClick={() => navigate('/staff/usuarios')}>
               Ir a usuarios
             </Button>
-            <Button type="button" variant="primary" onClick={() => navigate('/staff/perfil')}>
-              Editar datos
-            </Button>
           </div>
         </Card>
       ) : null}
 
       {seccion === 'perfil' ? (
         <Card className={backofficePanelCardClass}>
-          <p className="text-base font-semibold text-[var(--text)]">Perfil y datos</p>
-          <p className="mt-1 text-sm text-[var(--muted)]">Actualiza tus datos para visualizarlos en administración.</p>
-          {profileError ? <p className="mt-3 text-sm text-red-700">{profileError}</p> : null}
-          {profileOk ? <p className="mt-3 text-sm text-green-700">{profileOk}</p> : null}
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {profileError ? <p className="text-sm text-red-700">{profileError}</p> : null}
+          {profileOk ? <p className="text-sm text-green-700">{profileOk}</p> : null}
+          <div className={cn('grid gap-3 sm:grid-cols-2', (profileError || profileOk) && 'mt-3')}>
             <input
               value={perfilForm.nombre}
               onChange={(e) => setPerfilForm((p) => ({ ...p, nombre: e.target.value }))}

@@ -78,6 +78,31 @@ export function storeProfilePhoto(userId: number | string | undefined, foto: str
   }
 }
 
+export const PROFILE_PHOTO_UPDATED_EVENT = 'colgo:profile-photo-updated'
+
+/** Guarda la foto en caché local y notifica header, modal y páginas de perfil. */
+export function syncProfilePhoto(userId: number | string | undefined, foto: string | null): void {
+  storeProfilePhoto(userId, foto)
+  if (userId != null && userId !== '') {
+    try {
+      const settingsKey = `profile_settings_${String(userId)}`
+      const raw = localStorage.getItem(settingsKey)
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, unknown>
+        parsed.avatarDataUrl = foto || ''
+        localStorage.setItem(settingsKey, JSON.stringify(parsed))
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent(PROFILE_PHOTO_UPDATED_EVENT, { detail: { foto: foto || '' } }),
+    )
+  }
+}
+
 export function isTokenExpired(token: string): boolean {
   const payload = decodeJwtPayload(token)
   if (!payload || typeof payload.exp !== 'number') return false
@@ -167,7 +192,7 @@ export function persistSession(token: string, usuario: SessionUser): void {
   tokenCache = token
   userCache = usuarioGuardado
   markSessionVerified()
-  storeProfilePhoto(userId as number | string | undefined, foto)
+  syncProfilePhoto(userId as number | string | undefined, foto)
 }
 
 export function clearSession(): void {

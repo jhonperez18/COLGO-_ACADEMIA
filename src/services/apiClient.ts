@@ -400,11 +400,14 @@ export async function deleteAdminMatricula(id: number) {
 
 export type RolApi = 'admin' | 'estudiante' | 'docente' | 'staff';
 
+export type EstadoAcceso = 'activo' | 'suspendido' | 'cancelado' | 'finalizado';
+
 export type UsuarioListaItem = {
   id: number;
   email: string;
   rol: RolApi;
   activo: boolean;
+  estado_acceso?: EstadoAcceso;
   fecha_creacion?: string;
   nombre_completo?: string;
   documento?: string | null;
@@ -420,6 +423,7 @@ export type UsuarioDetalleAdmin = {
   email: string;
   rol: RolApi;
   activo: boolean;
+  estado_acceso?: EstadoAcceso;
   /** Foto de perfil (data URL o URL corta); mismo valor que guardan estudiante/docente en su panel */
   foto_url?: string | null;
   nombres?: string;
@@ -611,11 +615,24 @@ export async function updateUsuarioPermisosAdmin(
   });
 }
 
+export async function updateUsuarioEstadoAcceso(id: number, estado_acceso: EstadoAcceso) {
+  return apiCall<{ success: boolean; id: number; estado_acceso: EstadoAcceso; activo: boolean }>(
+    `/usuarios/${id}/estado`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ estado_acceso }),
+    },
+  );
+}
+
 export async function toggleUsuarioActivo(id: number, activo: boolean) {
-  return apiCall<{ success: boolean; id: number; activo: boolean }>(`/usuarios/${id}/estado`, {
-    method: 'PATCH',
-    body: JSON.stringify({ activo }),
-  });
+  return apiCall<{ success: boolean; id: number; estado_acceso: EstadoAcceso; activo: boolean }>(
+    `/usuarios/${id}/estado`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ activo }),
+    },
+  );
 }
 
 export async function deleteUsuarioAdmin(id: number) {
@@ -681,6 +698,8 @@ export async function validateUsuarioAdmin(params: { cedula?: string; email?: st
     emailExists: boolean;
     emailId?: number | null;
     emailRol?: string | null;
+    emailEstado?: string | null;
+    emailHint?: string | null;
     available: boolean;
   }>(`/usuarios/validate?${query.toString()}`);
 }

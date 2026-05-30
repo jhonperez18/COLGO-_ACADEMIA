@@ -5,6 +5,12 @@ import { query } from '../db.js';
 import { validateLogin, handleValidationErrors } from '../utils/validators.js';
 import { authenticateJWT, authorizeRole } from '../middleware/auth.js';
 import { handleMePerfilGet, handleMePerfilPut } from './usuarios.js';
+import {
+  ensureEstadoAccesoColumn,
+  mensajeAccesoDenegado,
+  puedeAccederPanel,
+  resolveEstadoAccesoFromRow,
+} from '../utils/estadoAcceso.js';
 
 const router = express.Router();
 
@@ -216,14 +222,19 @@ router.post('/login', validateLogin, handleValidationErrors, async (req, res) =>
     const usuario = usuarios[0];
     const nombrePanel = await resolveNombrePanel(usuario);
 
-    if (!usuario.activo) {
+    await ensureEstadoAccesoColumn();
+    const estadoAcceso = resolveEstadoAccesoFromRow(usuario);
+    if (!puedeAccederPanel(estadoAcceso)) {
       void logAuthActivity({
         objetivoId: Number(usuario.id),
         accion: 'login_blocked_user',
-        detalle: 'Intento de acceso de usuario inactivo',
+        detalle: `Intento de acceso con estado ${estadoAcceso}`,
         ip: req.ip,
       });
-      return res.status(401).json({ error: 'Usuario inactivo' });
+      return res.status(403).json({
+        error: mensajeAccesoDenegado(estadoAcceso),
+        estado_acceso: estadoAcceso,
+      });
     }
 
     if (!usuario.password_hash) {
@@ -428,18 +439,29 @@ router.get('/me', async (req, res) => {
     const decoded = jwt.verify(token, secret);
 
     // Buscar usuario completo
-    const usuarios = await query('SELECT id, email, rol, activo, cambiar_password FROM usuarios WHERE id = ?', [decoded.id]);
+    const usuarios = await query(
+      'SELECT id, email, rol, activo, estado_acceso, cambiar_password FROM usuarios WHERE id = ?',
+      [decoded.id],
+    );
     
     if (usuarios.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
     const row = usuarios[0];
-    if (!row.activo) {
-      return res.status(401).json({ error: 'Usuario inactivo' });
+    await ensureEstadoAccesoColumn();
+    const estadoAcceso = resolveEstadoAccesoFromRow(row);
+    if (!puedeAccederPanel(estadoAcceso)) {
+      return res.status(403).json({
+        error: mensajeAccesoDenegado(estadoAcceso),
+        estado_acceso: estadoAcceso,
+      });
     }
 
-    res.json({ success: true, usuario: row });
+    res.json({
+      success: true,
+      usuario: { ...row, estado_acceso: estadoAcceso, activo: estadoAcceso === 'activo' },
+    });
   } catch (error) {
     console.error('Error en /me:', error);
     res.status(401).json({ error: 'No autorizado' });
@@ -468,12 +490,23 @@ router.post('/change-password', async (req, res) => {
 
     const secret = process.env.JWT_SECRET || 'tu_clave_secreta_muy_segura_aqui';
     const decoded = jwt.verify(token, secret);
-    const usuarios = await query('SELECT id, password_hash, cambiar_password FROM usuarios WHERE id = ?', [decoded.id]);
+    const usuarios = await query(
+      'SELECT id, password_hash, cambiar_password, activo, estado_acceso FROM usuarios WHERE id = ?',
+      [decoded.id],
+    );
     if (!usuarios.length) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
     const usuario = usuarios[0];
+    await ensureEstadoAccesoColumn();
+    const estadoAcceso = resolveEstadoAccesoFromRow(usuario);
+    if (!puedeAccederPanel(estadoAcceso)) {
+      return res.status(403).json({
+        error: mensajeAccesoDenegado(estadoAcceso),
+        estado_acceso: estadoAcceso,
+      });
+    }
     // Flujo normal: exige contraseña actual.
     // Primer login: si cambiar_password=true, permite definir nueva contraseña sin pedir la actual.
     const requiereCambioInicial = Boolean(usuario.cambiar_password);

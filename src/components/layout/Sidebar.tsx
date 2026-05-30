@@ -8,7 +8,6 @@ import {
   MapPinned,
   ScrollText,
   Shield,
-  UserCircle2,
   ReceiptText,
   Users,
 } from 'lucide-react'
@@ -61,7 +60,6 @@ export function getNavItems(rol?: UserRole): NavItem[] {
       { to: `${base}/pagos`, label: 'Pagos', icon: <CreditCard size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/matriculas`, label: 'Matriculas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/sedes`, label: 'Sedes', icon: <MapPinned size={navIcon} strokeWidth={1.75} /> },
-      { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/eventos`, label: 'Eventos', icon: <ScrollText size={navIcon} strokeWidth={1.75} /> },
     ]
   }
@@ -72,7 +70,6 @@ export function getNavItems(rol?: UserRole): NavItem[] {
       { to: `${base}/estudiantes`, label: 'Estudiantes', icon: <Users size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/notas`, label: 'Notas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/material`, label: 'Material', icon: <BookOpen size={navIcon} strokeWidth={1.75} /> },
-      { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
     ]
   }
 
@@ -80,7 +77,6 @@ export function getNavItems(rol?: UserRole): NavItem[] {
     return [
       { to: `${base}/dashboard`, label: 'Inicio', icon: <LayoutDashboard size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/usuarios`, label: 'Usuarios', icon: <Shield size={navIcon} strokeWidth={1.75} /> },
-      { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
       { to: `${base}/eventos`, label: 'Eventos', icon: <ScrollText size={navIcon} strokeWidth={1.75} /> },
     ]
   }
@@ -90,7 +86,6 @@ export function getNavItems(rol?: UserRole): NavItem[] {
     { to: `${base}/cursos`, label: 'Mis cursos', icon: <BookOpen size={navIcon} strokeWidth={1.75} /> },
     { to: `${base}/notas`, label: 'Notas', icon: <ReceiptText size={navIcon} strokeWidth={1.75} /> },
     { to: `${base}/certificados`, label: 'Certificados', icon: <GraduationCap size={navIcon} strokeWidth={1.75} /> },
-    { to: `${base}/perfil`, label: 'Editar datos', icon: <UserCircle2 size={navIcon} strokeWidth={1.75} /> },
   ]
 }
 

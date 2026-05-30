@@ -5,7 +5,6 @@ import { Card } from '../components/common/Card'
 import { backofficePanelCardClass } from '../components/layout/backofficeVisual'
 import { cn } from '../utils/cn'
 import {
-  changePassword,
   getUsuariosMePerfil,
   updateUsuariosMePerfil,
 } from '../services/apiClient'
@@ -13,7 +12,7 @@ import {
   getSessionToken,
   loadSessionUser,
   persistSession,
-  storeProfilePhoto,
+  syncProfilePhoto,
 } from '../state/authSession'
 import { buildProfilePhotoDataUrl } from '../utils/profilePhotoDataUrl'
 
@@ -36,13 +35,6 @@ export function AdminPerfilPage() {
     telefono: '',
     cargo: '',
   })
-  const [passwordForm, setPasswordForm] = useState({
-    actual: '',
-    nueva: '',
-    confirmar: '',
-  })
-  const [passwordMsg, setPasswordMsg] = useState<string | null>(null)
-  const [cambiandoPassword, setCambiandoPassword] = useState(false)
 
   useEffect(() => {
     let cancel = false
@@ -69,7 +61,7 @@ export function AdminPerfilPage() {
           const foto = typeof conFoto.foto_url === 'string' ? conFoto.foto_url : ''
           if (foto) {
             setFotoPerfil(foto)
-            storeProfilePhoto(sessionUser?.id as number | string | undefined, foto)
+            syncProfilePhoto(sessionUser?.id as number | string | undefined, foto)
           }
         } catch {
           /* foto opcional */
@@ -105,39 +97,13 @@ export function AdminPerfilPage() {
       const display = [perfilForm.nombre.trim(), perfilForm.apellido.trim()].filter(Boolean).join(' ')
       if (sessionUser) {
         persistSession(getSessionToken() || '', { ...sessionUser, nombre_panel: display })
-        storeProfilePhoto(sessionUser.id as number | string | undefined, fotoPerfil || null)
+        syncProfilePhoto(sessionUser.id as number | string | undefined, fotoPerfil || null)
       }
       setMensajeOk('Perfil de administrador guardado correctamente.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo guardar el perfil')
     } finally {
       setGuardando(false)
-    }
-  }
-
-  const cambiarPassword = async () => {
-    setPasswordMsg(null)
-    if (!passwordForm.nueva || !passwordForm.confirmar) {
-      setPasswordMsg('Completa la nueva contraseña y su confirmación.')
-      return
-    }
-    if (passwordForm.nueva.length < 8) {
-      setPasswordMsg('La nueva contraseña debe tener mínimo 8 caracteres.')
-      return
-    }
-    if (passwordForm.nueva !== passwordForm.confirmar) {
-      setPasswordMsg('La confirmación no coincide.')
-      return
-    }
-    setCambiandoPassword(true)
-    try {
-      await changePassword(passwordForm.actual.trim() || null, passwordForm.nueva)
-      setPasswordForm({ actual: '', nueva: '', confirmar: '' })
-      setPasswordMsg('Contraseña actualizada correctamente.')
-    } catch (e) {
-      setPasswordMsg(e instanceof Error ? e.message : 'No se pudo actualizar la contraseña')
-    } finally {
-      setCambiandoPassword(false)
     }
   }
 
@@ -194,7 +160,7 @@ export function AdminPerfilPage() {
                       onClick={() => {
                         setFotoPerfil('')
                         void updateUsuariosMePerfil({ foto_url: null }).catch(() => {})
-                        storeProfilePhoto(sessionUser?.id as number | string | undefined, null)
+                        syncProfilePhoto(sessionUser?.id as number | string | undefined, null)
                       }}
                     >
                       Quitar foto
@@ -215,7 +181,7 @@ export function AdminPerfilPage() {
                         const dataUrl = await buildProfilePhotoDataUrl(f)
                         setFotoPerfil(dataUrl)
                         await updateUsuariosMePerfil({ foto_url: dataUrl })
-                        storeProfilePhoto(sessionUser?.id as number | string | undefined, dataUrl)
+                        syncProfilePhoto(sessionUser?.id as number | string | undefined, dataUrl)
                       } catch (err) {
                         setError(err instanceof Error ? err.message : 'No se pudo guardar la foto')
                       }
@@ -284,54 +250,6 @@ export function AdminPerfilPage() {
             </div>
           </div>
         )}
-      </Card>
-
-      <Card className={cn(backofficePanelCardClass, 'p-4 sm:p-5')}>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="text-sm font-semibold text-[var(--text)]">Seguridad</p>
-          <p className="text-xs text-[var(--muted)]">Actualiza la contraseña de acceso al panel.</p>
-        </div>
-        {passwordMsg ? (
-          <p className={cn('mt-2 text-xs', passwordMsg.includes('correctamente') ? 'text-green-700' : 'text-red-700')}>
-            {passwordMsg}
-          </p>
-        ) : null}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <input
-            type="password"
-            value={passwordForm.actual}
-            onChange={(e) => setPasswordForm((p) => ({ ...p, actual: e.target.value }))}
-            placeholder="Contraseña actual"
-            className={cn(inputClass, 'h-9 w-full min-w-[9rem] sm:w-[10.5rem]')}
-            autoComplete="current-password"
-          />
-          <input
-            type="password"
-            value={passwordForm.nueva}
-            onChange={(e) => setPasswordForm((p) => ({ ...p, nueva: e.target.value }))}
-            placeholder="Nueva contraseña"
-            className={cn(inputClass, 'h-9 w-full min-w-[9rem] sm:w-[10.5rem]')}
-            autoComplete="new-password"
-          />
-          <input
-            type="password"
-            value={passwordForm.confirmar}
-            onChange={(e) => setPasswordForm((p) => ({ ...p, confirmar: e.target.value }))}
-            placeholder="Confirmar"
-            className={cn(inputClass, 'h-9 w-full min-w-[8rem] sm:w-[9.5rem]')}
-            autoComplete="new-password"
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="h-9 shrink-0"
-            onClick={() => void cambiarPassword()}
-            disabled={cambiandoPassword}
-          >
-            {cambiandoPassword ? 'Actualizando…' : 'Cambiar contraseña'}
-          </Button>
-        </div>
       </Card>
     </div>
   )

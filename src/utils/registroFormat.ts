@@ -7,6 +7,8 @@ const ACCION_LABELS: Record<string, string> = {
   usuario_creado: 'Usuario creado',
   usuario_actualizado: 'Usuario actualizado',
   usuario_eliminado: 'Usuario eliminado',
+  usuario_estado_acceso: 'Estado de acceso',
+  limpieza_usuarios: 'Limpieza del sistema',
   password_reset: 'Contraseña restablecida',
 }
 

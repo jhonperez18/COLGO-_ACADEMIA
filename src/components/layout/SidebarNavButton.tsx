@@ -79,3 +79,71 @@ export function SidebarNavButton({
     </button>
   )
 }
+
+const sidebarChipActiveClass =
+  'border-amber-400/55 bg-gradient-to-r from-slate-300 via-amber-100/70 to-amber-200/60 shadow-sm ring-1 ring-amber-500/40'
+const sidebarChipIdleClass =
+  'border-slate-300/80 bg-gradient-to-r from-slate-100/85 via-white to-slate-200/70 hover:border-slate-400/90 hover:from-slate-200/90 hover:via-slate-100 hover:to-slate-300/70'
+const sidebarChipIconActiveClass =
+  'border-amber-500/55 bg-gradient-to-b from-slate-500 via-slate-400 to-amber-300/80 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]'
+const sidebarChipIconIdleClass =
+  'border-slate-300/90 bg-gradient-to-b from-slate-100 to-slate-200/85 text-slate-700 group-hover:border-slate-500/85 group-hover:from-slate-300 group-hover:to-slate-400/75 group-hover:text-slate-950'
+
+type SidebarFilterChipProps = {
+  active?: boolean
+  onClick: () => void
+  icon: ReactNode
+  label: string
+  count?: number
+  className?: string
+}
+
+/** Versión compacta del botón sidebar — filtros en barra de listados. */
+export function SidebarFilterChip({
+  active = false,
+  onClick,
+  icon,
+  label,
+  count,
+  className,
+}: SidebarFilterChipProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'group inline-flex min-h-[26px] shrink-0 items-center gap-1 rounded-md border px-1 py-0.5 transition-all duration-150',
+        active ? sidebarChipActiveClass : sidebarChipIdleClass,
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          'flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all duration-150 [&>svg]:h-2.5 [&>svg]:w-2.5',
+          active ? sidebarChipIconActiveClass : sidebarChipIconIdleClass,
+        )}
+      >
+        {icon}
+      </span>
+      <span
+        className={cn(
+          'whitespace-nowrap text-[10px] leading-none transition-colors',
+          active ? 'font-semibold text-slate-950' : 'font-medium text-slate-700 group-hover:text-slate-900',
+        )}
+      >
+        {label}
+      </span>
+      {count != null ? (
+        <span
+          className={cn(
+            'min-w-[1rem] rounded px-0.5 text-center text-[9px] font-semibold leading-4 tabular-nums',
+            active ? 'bg-amber-500/20 text-amber-950' : 'bg-slate-200/80 text-slate-600',
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
+    </button>
+  )
+}

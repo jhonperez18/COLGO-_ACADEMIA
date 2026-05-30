@@ -6,6 +6,8 @@ export type Column<T> = {
   className?: string
   headerClassName?: string
   render: (row: T) => ReactNode
+  /** Cabecera personalizada (p. ej. checkbox «seleccionar todo»). */
+  renderHeader?: () => ReactNode
 }
 
 export type DataTableProps<T extends object> = {
@@ -43,7 +45,7 @@ export function DataTable<T extends object>({
                   col.headerClassName,
                 )}
               >
-                {col.header}
+                {col.renderHeader ? col.renderHeader() : col.header}
               </th>
             ))}
           </tr>

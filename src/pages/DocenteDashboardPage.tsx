@@ -11,13 +11,18 @@ import {
   subscribeRealtime,
   updateTeacherPerfil,
 } from '../services/apiClient'
-import { loadSessionUser, loadStoredProfilePhoto } from '../state/authSession'
+import { loadSessionUser, loadStoredProfilePhoto, PROFILE_PHOTO_UPDATED_EVENT, syncProfilePhoto } from '../state/authSession'
 import { BookOpen, Camera, ChevronDown, FolderOpen, UserCircle2 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { withOptimisticUpdate } from '../utils/optimistic'
 import { backofficePanelCardClass } from '../components/layout/backofficeVisual'
 import { cn } from '../utils/cn'
 import { buildProfilePhotoDataUrl } from '../utils/profilePhotoDataUrl'
+
+const perfilFieldClass =
+  'h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 text-sm outline-none focus:border-[var(--accent)]'
+const perfilLabelClass =
+  'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]'
 
 type TeacherCourse = {
   id: number
@@ -38,9 +43,7 @@ type TeacherStudent = {
 export function DocenteDashboardPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [saludo, setSaludo] = useState('Panel docente')
   const [cursos, setCursos] = useState<TeacherCourse[]>([])
-  const [nCursos, setNCursos] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [cursoActivoId, setCursoActivoId] = useState<number | null>(null)
@@ -66,6 +69,7 @@ export function DocenteDashboardPage() {
   })
   const [fotoPerfil, setFotoPerfil] = useState('')
   const fotoInputRef = useRef<HTMLInputElement | null>(null)
+  const correoSesion = String(loadSessionUser()?.email ?? '')
   const [clasesRecientes, setClasesRecientes] = useState<
     Array<{ id: string; cursoId: number; titulo: string; fecha: string; hora_inicio: string; tipo: 'virtual' | 'presencial' }>
   >([])
@@ -93,7 +97,6 @@ export function DocenteDashboardPage() {
         const inicio = await getTeacherInicio()
         if (cancelled) return
         const perfil = inicio.perfil
-        if (perfil?.nombre) setSaludo(`Hola, ${String(perfil.nombre)}`)
         setPerfilForm({
           nombre: String(perfil?.nombre || ''),
           apellido: String(perfil?.apellido || ''),
@@ -103,19 +106,24 @@ export function DocenteDashboardPage() {
         })
         if (typeof perfil?.foto_url === 'string' && perfil.foto_url) {
           setFotoPerfil(perfil.foto_url)
+          syncProfilePhoto(userId, perfil.foto_url)
         } else if (!fotoLocal) {
           void getTeacherPerfil({ includeFoto: true })
             .then((p) => {
               if (cancelled) return
               const row = p as Record<string, unknown>
               const url = typeof row?.foto_url === 'string' ? row.foto_url : ''
-              if (url) setFotoPerfil(url)
+              if (url) {
+                setFotoPerfil(url)
+                syncProfilePhoto(userId, url)
+              }
             })
             .catch(() => {})
+        } else if (fotoLocal) {
+          syncProfilePhoto(userId, fotoLocal)
         }
         const cursosNormalizados = Array.isArray(inicio.cursos) ? (inicio.cursos as TeacherCourse[]) : []
         setCursos(cursosNormalizados)
-        setNCursos(cursosNormalizados.length)
         if (cursosNormalizados.length > 0) setCursoActivoId(cursosNormalizados[0].id)
       } catch {
         if (!cancelled) {
@@ -128,6 +136,15 @@ export function DocenteDashboardPage() {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    const onPhotoUpdated = (event: Event) => {
+      const foto = (event as CustomEvent<{ foto?: string }>).detail?.foto ?? ''
+      setFotoPerfil(foto)
+    }
+    window.addEventListener(PROFILE_PHOTO_UPDATED_EVENT, onPhotoUpdated)
+    return () => window.removeEventListener(PROFILE_PHOTO_UPDATED_EVENT, onPhotoUpdated)
   }, [])
 
   useEffect(() => {
@@ -212,8 +229,11 @@ export function DocenteDashboardPage() {
         especialidad: perfilForm.especialidad.trim(),
         foto_url: fotoPerfil || null,
       })
-      setSaludo(`Hola, ${perfilForm.nombre.trim()}`)
       setProfileOk('Perfil actualizado correctamente.')
+      syncProfilePhoto(loadSessionUser()?.id as number | string | undefined, fotoPerfil || null)
+      window.dispatchEvent(
+        new CustomEvent('colgo:profile-updated', { detail: { nombre: perfilForm.nombre.trim() } }),
+      )
     } catch (e) {
       setProfileError(e instanceof Error ? e.message : 'No se pudo actualizar el perfil')
     } finally {
@@ -320,13 +340,6 @@ export function DocenteDashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className={cn(backofficePanelCardClass, 'flex items-center justify-between')}>
-        <div>
-          <p className="text-base font-semibold text-[var(--text)]">{saludo}</p>
-          <p className="mt-1 text-sm text-[var(--muted)]">Cursos asignados: {nCursos}</p>
-        </div>
-      </Card>
-
       {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
       {seccion === 'dashboard' ? (
@@ -394,18 +407,8 @@ export function DocenteDashboardPage() {
             </div>
           </Card>
           <Card className={backofficePanelCardClass}>
-            <p className="text-sm font-semibold text-[var(--text)]">Accesos</p>
-            <div className="mt-3 flex flex-col gap-2">
-              <Button size="sm" className="w-full justify-start" onClick={() => navigate('/docente/estudiantes')}>
-                Ver estudiantes
-              </Button>
-              <Button size="sm" className="w-full justify-start" variant="secondary" onClick={() => navigate('/docente/notas')}>
-                Editar notas
-              </Button>
-            </div>
-            <div className="mt-4 border-t border-[var(--border)] pt-3">
-              <p className="text-xs font-semibold text-[var(--muted)]">Programar clase</p>
-              <div className="mt-2 space-y-2">
+            <p className="text-sm font-semibold text-[var(--text)]">Programar clase</p>
+            <div className="mt-3 space-y-2">
                 <input
                   value={nuevaClase.titulo}
                   onChange={(e) => setNuevaClase((p) => ({ ...p, titulo: e.target.value }))}
@@ -473,7 +476,6 @@ export function DocenteDashboardPage() {
                   </div>
                 </div>
               ) : null}
-            </div>
           </Card>
         </div>
       ) : null}
@@ -651,21 +653,13 @@ export function DocenteDashboardPage() {
 
       {seccion === 'perfil' ? (
         <Card>
-          <p className="text-base font-semibold text-[var(--text)]">Perfil y datos</p>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Actualiza tus datos personales. La foto y los datos coinciden con la ficha que ve administración (solo lectura en ese panel).
-          </p>
-          {profileError ? <p className="mt-3 text-sm text-red-700">{profileError}</p> : null}
-          {profileOk ? <p className="mt-3 text-sm text-green-700">{profileOk}</p> : null}
-          <div className="mt-4 flex flex-col gap-3 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:gap-4">
+          {profileError ? <p className="text-sm text-red-700">{profileError}</p> : null}
+          {profileOk ? <p className="text-sm text-green-700">{profileOk}</p> : null}
+          <div className={cn('flex flex-col gap-3 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:gap-4', (profileError || profileOk) && 'mt-3')}>
             <div className="mx-auto flex shrink-0 justify-center sm:mx-0">
               {fotoPerfil ? (
                 <div className="relative h-20 w-20 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--panel-2)]">
-                  <img
-                    src={fotoPerfil}
-                    alt=""
-                    className="block h-full w-full object-cover object-center"
-                  />
+                  <img src={fotoPerfil} alt="" className="block h-full w-full object-cover object-center" />
                 </div>
               ) : (
                 <div className="grid h-20 w-20 place-items-center rounded-full border border-[var(--border)] bg-[var(--panel-2)]">
@@ -693,6 +687,7 @@ export function DocenteDashboardPage() {
                       try {
                         setFotoPerfil('')
                         await updateTeacherPerfil({ foto_url: null })
+                        syncProfilePhoto(loadSessionUser()?.id as number | string | undefined, null)
                         setProfileOk('Foto eliminada.')
                       } catch (err) {
                         setProfileError(err instanceof Error ? err.message : 'No se pudo quitar la foto.')
@@ -726,6 +721,7 @@ export function DocenteDashboardPage() {
                       const dataUrl = await buildProfilePhotoDataUrl(f)
                       setFotoPerfil(dataUrl)
                       await updateTeacherPerfil({ foto_url: dataUrl })
+                      syncProfilePhoto(loadSessionUser()?.id as number | string | undefined, dataUrl)
                       setProfileOk('Foto guardada en el sistema.')
                     } catch (err) {
                       setProfileError(err instanceof Error ? err.message : 'No se pudo guardar la foto.')
@@ -736,37 +732,55 @@ export function DocenteDashboardPage() {
             </div>
             <p className="text-xs text-[var(--muted)] sm:max-w-xs">JPG, PNG. Se optimiza al guardar para que el admin vea la misma foto.</p>
           </div>
+          <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
+            Estos datos son los mismos que ve el administrador en la ficha del docente. Al guardar, se actualizan de inmediato en el panel de administración.
+          </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <input
-              value={perfilForm.nombre}
-              onChange={(e) => setPerfilForm((p) => ({ ...p, nombre: e.target.value }))}
-              placeholder="Nombre"
-              className="h-10 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 text-sm outline-none focus:border-[var(--accent)]"
-            />
-            <input
-              value={perfilForm.apellido}
-              onChange={(e) => setPerfilForm((p) => ({ ...p, apellido: e.target.value }))}
-              placeholder="Apellido"
-              className="h-10 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 text-sm outline-none focus:border-[var(--accent)]"
-            />
-            <input
-              value={perfilForm.documento}
-              onChange={(e) => setPerfilForm((p) => ({ ...p, documento: e.target.value }))}
-              placeholder="Documento"
-              className="h-10 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 text-sm outline-none focus:border-[var(--accent)]"
-            />
-            <input
-              value={perfilForm.telefono}
-              onChange={(e) => setPerfilForm((p) => ({ ...p, telefono: e.target.value }))}
-              placeholder="Teléfono"
-              className="h-10 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 text-sm outline-none focus:border-[var(--accent)]"
-            />
-            <input
-              value={perfilForm.especialidad}
-              onChange={(e) => setPerfilForm((p) => ({ ...p, especialidad: e.target.value }))}
-              placeholder="Especialidad"
-              className="h-10 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 text-sm outline-none focus:border-[var(--accent)] sm:col-span-2"
-            />
+            <label className="block">
+              <span className={perfilLabelClass}>Nombre(s)</span>
+              <input
+                value={perfilForm.nombre}
+                onChange={(e) => setPerfilForm((p) => ({ ...p, nombre: e.target.value }))}
+                className={perfilFieldClass}
+              />
+            </label>
+            <label className="block">
+              <span className={perfilLabelClass}>Apellido(s)</span>
+              <input
+                value={perfilForm.apellido}
+                onChange={(e) => setPerfilForm((p) => ({ ...p, apellido: e.target.value }))}
+                className={perfilFieldClass}
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className={perfilLabelClass}>Correo electrónico</span>
+              <input value={correoSesion} readOnly disabled className={cn(perfilFieldClass, 'opacity-70')} />
+            </label>
+            <label className="block">
+              <span className={perfilLabelClass}>Documento</span>
+              <input
+                value={perfilForm.documento}
+                onChange={(e) => setPerfilForm((p) => ({ ...p, documento: e.target.value }))}
+                className={perfilFieldClass}
+              />
+            </label>
+            <label className="block">
+              <span className={perfilLabelClass}>Teléfono</span>
+              <input
+                value={perfilForm.telefono}
+                onChange={(e) => setPerfilForm((p) => ({ ...p, telefono: e.target.value }))}
+                className={perfilFieldClass}
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className={perfilLabelClass}>Especialidad</span>
+              <input
+                value={perfilForm.especialidad}
+                onChange={(e) => setPerfilForm((p) => ({ ...p, especialidad: e.target.value }))}
+                placeholder="Área o disciplina principal"
+                className={perfilFieldClass}
+              />
+            </label>
           </div>
           <div className="mt-3">
             <Button type="button" variant="primary" onClick={() => void guardarPerfil()} disabled={savingProfile}>

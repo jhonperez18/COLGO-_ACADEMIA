@@ -13,7 +13,7 @@ import {
   marcarNotificacionLeida,
   subscribeRealtime,
 } from '../services/apiClient'
-import { loadSessionUser, loadStoredProfilePhoto } from '../state/authSession'
+import { loadSessionUser, loadStoredProfilePhoto, PROFILE_PHOTO_UPDATED_EVENT, syncProfilePhoto } from '../state/authSession'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Camera, UserCircle2 } from 'lucide-react'
 import { withOptimisticUpdate } from '../utils/optimistic'
@@ -88,6 +88,7 @@ export function EstudianteDashboardPage() {
   })
   const [fotoPerfil, setFotoPerfil] = useState('')
   const fotoInputRef = useRef<HTMLInputElement | null>(null)
+  const correoSesion = String(loadSessionUser()?.email ?? '')
   const { departamentos: colombiaDeptos, geoError: colombiaGeoError } = useColombiaMunicipios()
 
   useEffect(() => {
@@ -118,14 +119,20 @@ export function EstudianteDashboardPage() {
         })
         if (typeof perfil?.foto_url === 'string' && perfil.foto_url) {
           setFotoPerfil(perfil.foto_url)
+          syncProfilePhoto(userId, perfil.foto_url)
         } else if (!fotoLocal) {
           void getStudentPerfil({ includeFoto: true })
             .then((p) => {
               if (cancelled) return
               const url = typeof (p as Record<string, unknown>)?.foto_url === 'string' ? String((p as Record<string, unknown>).foto_url) : ''
-              if (url) setFotoPerfil(url)
+              if (url) {
+                setFotoPerfil(url)
+                syncProfilePhoto(userId, url)
+              }
             })
             .catch(() => {})
+        } else if (fotoLocal) {
+          syncProfilePhoto(userId, fotoLocal)
         }
         const cursosNormalizados = Array.isArray(inicio.cursos) ? (inicio.cursos as StudentCourse[]) : []
         setCursos(cursosNormalizados)
@@ -147,6 +154,24 @@ export function EstudianteDashboardPage() {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    const onProfileUpdated = (event: Event) => {
+      const nombre = (event as CustomEvent<{ nombre?: string }>).detail?.nombre
+      if (nombre?.trim()) setSaludo(`Hola, ${nombre.trim()}`)
+    }
+    window.addEventListener('colgo:profile-updated', onProfileUpdated)
+    return () => window.removeEventListener('colgo:profile-updated', onProfileUpdated)
+  }, [])
+
+  useEffect(() => {
+    const onPhotoUpdated = (event: Event) => {
+      const foto = (event as CustomEvent<{ foto?: string }>).detail?.foto ?? ''
+      setFotoPerfil(foto)
+    }
+    window.addEventListener(PROFILE_PHOTO_UPDATED_EVENT, onPhotoUpdated)
+    return () => window.removeEventListener(PROFILE_PHOTO_UPDATED_EVENT, onPhotoUpdated)
   }, [])
 
   useEffect(() => {
@@ -237,6 +262,10 @@ export function EstudianteDashboardPage() {
       })
       setProfileOk('Perfil actualizado correctamente.')
       setSaludo(`Hola, ${perfilForm.nombre.trim()}`)
+      syncProfilePhoto(loadSessionUser()?.id as number | string | undefined, fotoPerfil || null)
+      window.dispatchEvent(
+        new CustomEvent('colgo:profile-updated', { detail: { nombre: perfilForm.nombre.trim() } }),
+      )
     } catch (e) {
       setProfileError(e instanceof Error ? e.message : 'No se pudo actualizar el perfil')
     } finally {
@@ -295,7 +324,6 @@ export function EstudianteDashboardPage() {
               <Button size="sm" onClick={() => navigate('/estudiante/cursos')}>Mis cursos</Button>
               <Button size="sm" variant="secondary" onClick={() => navigate('/estudiante/notas')}>Ver notas</Button>
               <Button size="sm" variant="secondary" onClick={() => navigate('/estudiante/certificados')}>Certificados</Button>
-              <Button size="sm" variant="secondary" onClick={() => navigate('/estudiante/perfil')}>Perfil y datos</Button>
             </div>
           </Card>
           <Card className="md:col-span-2">
@@ -467,13 +495,9 @@ export function EstudianteDashboardPage() {
       {seccion === 'perfil' ? (
         <div className="space-y-4">
           <Card>
-            <p className="text-base font-semibold text-[var(--text)]">Perfil y datos</p>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Completa tus datos personales. La misma información y la foto de perfil se sincronizan con la ficha del administrador (solo lectura allí; credenciales y acceso no se alteran).
-            </p>
-            {profileError ? <p className="mt-3 text-sm text-red-700">{profileError}</p> : null}
-            {profileOk ? <p className="mt-3 text-sm text-green-700">{profileOk}</p> : null}
-            <div className="mt-4 flex flex-col gap-3 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:gap-4">
+            {profileError ? <p className="text-sm text-red-700">{profileError}</p> : null}
+            {profileOk ? <p className="text-sm text-green-700">{profileOk}</p> : null}
+            <div className={cn('flex flex-col gap-3 border-b border-[var(--border)] pb-4 sm:flex-row sm:items-center sm:gap-4', (profileError || profileOk) && 'mt-3')}>
               <div className="mx-auto flex shrink-0 justify-center sm:mx-0">
                 {fotoPerfil ? (
                   <div className="relative h-20 w-20 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--panel-2)]">
@@ -509,6 +533,7 @@ export function EstudianteDashboardPage() {
                         try {
                           setFotoPerfil('')
                           await updateStudentPerfil({ foto_url: null })
+                          syncProfilePhoto(loadSessionUser()?.id as number | string | undefined, null)
                           setProfileOk('Foto eliminada.')
                         } catch (err) {
                           setProfileError(err instanceof Error ? err.message : 'No se pudo quitar la foto.')
@@ -542,6 +567,7 @@ export function EstudianteDashboardPage() {
                         const dataUrl = await buildProfilePhotoDataUrl(f)
                         setFotoPerfil(dataUrl)
                         await updateStudentPerfil({ foto_url: dataUrl })
+                        syncProfilePhoto(loadSessionUser()?.id as number | string | undefined, dataUrl)
                         setProfileOk('Foto guardada en el sistema.')
                       } catch (err) {
                         setProfileError(err instanceof Error ? err.message : 'No se pudo guardar la foto.')
@@ -554,7 +580,21 @@ export function EstudianteDashboardPage() {
                 JPG, PNG, WebP. Se optimiza al guardar (menor tamaño, misma foto en administración).
               </p>
             </div>
+            <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
+              Los datos que completes aquí son los mismos que revisa el administrador en tu ficha. Al guardar, el resumen del panel admin se actualiza.
+            </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="block sm:col-span-2">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                  Correo electrónico
+                </span>
+                <input
+                  value={correoSesion}
+                  readOnly
+                  disabled
+                  className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 text-sm opacity-70 outline-none"
+                />
+              </label>
               <input
                 value={perfilForm.nombre}
                 onChange={(e) => setPerfilForm((p) => ({ ...p, nombre: e.target.value }))}
