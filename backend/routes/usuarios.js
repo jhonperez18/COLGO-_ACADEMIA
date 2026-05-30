@@ -73,7 +73,7 @@ async function ensureMysqlColumns(tableName, cols) {
     try {
       const existsRows = await query(
         `SELECT 1 AS ok FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?) AND COLUMN_NAME = ? LIMIT 1`,
+         WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?) AND LOWER(COLUMN_NAME) = LOWER(?) LIMIT 1`,
         [tableName, name],
       )
       if (!Array.isArray(existsRows) || existsRows.length === 0) {
@@ -130,16 +130,30 @@ function resolveLoginUsuario(rawUsuario, documento) {
 async function insertPersonaRecord(table, { usuario_id, nombre, apellido, documento, usuarioLogin }) {
   await ensurePersonaLoginUsuarioColumns()
   const loginUsuario = resolveLoginUsuario(usuarioLogin, documento)
-  const cols = await getExistingColumnNames(table)
   const fields = ['usuario_id', 'nombre', 'apellido', 'documento']
   const values = [usuario_id, nombre || '—', apellido || '—', documento || null]
-  if (cols.has('usuario')) {
+  const cols = await getExistingColumnNames(table)
+  if (loginUsuario && cols.has('usuario')) {
     fields.push('usuario')
     values.push(loginUsuario)
   }
-  const placeholders = fields.map(() => '?').join(', ')
-  const quoted = fields.map((c) => `\`${c}\``).join(', ')
-  return query(`INSERT INTO \`${table}\` (${quoted}) VALUES (${placeholders})`, values)
+  const runInsert = (f, v) => {
+    const placeholders = f.map(() => '?').join(', ')
+    const quoted = f.map((c) => `\`${c}\``).join(', ')
+    return query(`INSERT INTO \`${table}\` (${quoted}) VALUES (${placeholders})`, v)
+  }
+  try {
+    return await runInsert(fields, values)
+  } catch (err) {
+    if (err?.code !== 'ER_NO_DEFAULT_FOR_FIELD' || !String(err.sqlMessage || '').includes("'usuario'") || !loginUsuario) {
+      throw err
+    }
+    if (!fields.includes('usuario')) {
+      fields.push('usuario')
+      values.push(loginUsuario)
+    }
+    return runInsert(fields, values)
+  }
 }
 
 async function backfillPersonaNombresVacios() {
@@ -233,11 +247,61 @@ async function getExistingColumnNames(tableName) {
   )
   const set = new Set(
     (Array.isArray(rows) ? rows : [])
-      .map((r) => String(r.c ?? r.C ?? r.COLUMN_NAME ?? '').trim())
+      .map((r) => String(r.c ?? r.C ?? r.COLUMN_NAME ?? '').trim().toLowerCase())
       .filter(Boolean),
   )
   columnNamesCache.set(key, set)
   return set
+}
+
+/** Columna legacy `usuario` en tabla usuarios (Aiven). */
+async function ensureUsuariosLoginColumn() {
+  await ensureMysqlColumns('usuarios', [['usuario', 'VARCHAR(80) NULL']])
+  columnNamesCache.delete('usuarios')
+  try {
+    await query(
+      `UPDATE usuarios u
+       LEFT JOIN estudiantes e ON e.usuario_id = u.id
+       LEFT JOIN docentes d ON d.usuario_id = u.id
+       LEFT JOIN staff_perfiles sp ON sp.usuario_id = u.id
+       SET u.usuario = COALESCE(
+         NULLIF(TRIM(u.usuario), ''),
+         NULLIF(TRIM(e.documento), ''),
+         NULLIF(TRIM(d.documento), ''),
+         NULLIF(TRIM(sp.documento), ''),
+         SUBSTRING_INDEX(u.email, '@', 1)
+       )
+       WHERE u.usuario IS NULL OR TRIM(u.usuario) = ''`,
+    )
+  } catch (e) {
+    console.warn('[COLGO] backfill usuarios.usuario:', e?.code || e?.message || e)
+  }
+}
+
+async function insertAuthUsuario({ email, password_hash, rol, activo, cambiar_password, loginUsuario }) {
+  await ensureUsuariosLoginColumn()
+  const cols = await getExistingColumnNames('usuarios')
+  const login = String(loginUsuario ?? '').trim()
+  const fields = ['email', 'password_hash', 'rol', 'activo', 'cambiar_password']
+  const values = [email, password_hash, rol, activo, cambiar_password]
+  if (login && cols.has('usuario')) {
+    fields.push('usuario')
+    values.push(login)
+  }
+  const placeholders = fields.map(() => '?').join(', ')
+  const quoted = fields.map((c) => `\`${c}\``).join(', ')
+  try {
+    return await query(`INSERT INTO usuarios (${quoted}) VALUES (${placeholders})`, values)
+  } catch (err) {
+    if (err?.code !== 'ER_NO_DEFAULT_FOR_FIELD' || !String(err.sqlMessage || '').includes("'usuario'") || !login) {
+      throw err
+    }
+    fields.push('usuario')
+    values.push(login)
+    const quotedRetry = fields.map((c) => `\`${c}\``).join(', ')
+    const placeholdersRetry = fields.map(() => '?').join(', ')
+    return query(`INSERT INTO usuarios (${quotedRetry}) VALUES (${placeholdersRetry})`, values)
+  }
 }
 
 /** SELECT de perfil estudiante solo con columnas que existan (evita 500 si migración a medias). */
@@ -336,7 +400,7 @@ function buildUsuarioDbErrorResponse(err, fallbackError) {
   if (err?.code === 'ER_NO_DEFAULT_FOR_FIELD') {
     const field = String(err.sqlMessage || '').match(/Field '([^']+)'/)?.[1] || ''
     const hints = {
-      usuario: 'Indica el usuario de acceso en el formulario (por defecto se usa la cédula).',
+      usuario: 'No hace falta un campo aparte: el sistema usa la cédula como usuario. Si el error continúa, espera 1–2 minutos al despliegue del backend.',
     }
     return {
       status: 400,
@@ -500,6 +564,7 @@ async function ensureSupportTables() {
     await ensureUltimoAccesoColumn()
     await ensurePersonaNombreColumns()
     await ensurePersonaLoginUsuarioColumns()
+    await ensureUsuariosLoginColumn()
     await backfillPersonaNombresVacios()
     await ensureEstudiantesUbicacionColumns()
     await ensureDocentesExtraColumns()
@@ -1926,6 +1991,7 @@ router.post('/', async (req, res) => {
     await ensureSupportTables()
     await ensurePersonaNombreColumns()
     await ensurePersonaLoginUsuarioColumns()
+    await ensureUsuariosLoginColumn()
     const existeMail = await query('SELECT id FROM usuarios WHERE LOWER(email) = LOWER(?)', [mail])
     if (Array.isArray(existeMail) && existeMail.length > 0) {
       return res.status(409).json({ error: 'El correo ya está registrado' })
@@ -1959,10 +2025,14 @@ router.post('/', async (req, res) => {
     }
 
     const password_hash = await bcrypt.hash(doc, 10)
-    const usuarioResult = await query(
-      'INSERT INTO usuarios (email, password_hash, rol, activo, cambiar_password) VALUES (?, ?, ?, ?, ?)',
-      [mail, password_hash, rolDb, true, true],
-    )
+    const usuarioResult = await insertAuthUsuario({
+      email: mail,
+      password_hash,
+      rol: rolDb,
+      activo: true,
+      cambiar_password: true,
+      loginUsuario: doc,
+    })
     usuarioId =
       usuarioResult && typeof usuarioResult === 'object' && 'insertId' in usuarioResult
         ? usuarioResult.insertId
